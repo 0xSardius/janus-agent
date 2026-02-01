@@ -1,0 +1,20 @@
+{
+  "name": "janus-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous token launcher agent for Flaunch on Base",
+  "scripts": {
+    "dev": "pnpm --filter @janus/agent dev",
+    "build": "pnpm --filter @janus/agent build",
+    "start": "pnpm --filter @janus/agent start",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "packages/agent/Dockerfile"
+
+[deploy]
+startCommand = "node packages/agent/dist/runner.js"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "always"
+restartPolicyMaxRetries = 10
