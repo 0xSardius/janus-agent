@@ -9,6 +9,9 @@ import {
   pollNewTokens,
   extractTrendingConcepts,
   scoreConcepts,
+  scoreConceptsWithLLM,
+  extractAndAnalyzeConcepts,
+  clearAnalysisCache,
   selectLaunchCandidate,
   generateTokenConcept,
   launchToken,
@@ -28,6 +31,14 @@ import {
 } from "./alerts.js";
 import { SAFETY_LIMITS, INTERVALS } from "./constants.js";
 import type { AgentState } from "./types.js";
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ENABLE_LLM_SCORING = process.env.ENABLE_LLM_SCORING === "true";
+const LLM_ANALYSIS_LIMIT = parseInt(process.env.LLM_ANALYSIS_LIMIT || "5", 10);
+const CACHE_CLEAR_INTERVAL = 12; // Clear LLM cache every 12 cycles (~12 min)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AGENT STATE CONTAINER
@@ -98,6 +109,10 @@ async function main() {
   // Initialize contexts
   const contexts = createAgentContexts();
   log("Contexts initialized");
+  log(`LLM-enhanced scoring: ${ENABLE_LLM_SCORING ? "ENABLED" : "DISABLED"}`);
+  if (ENABLE_LLM_SCORING) {
+    log(`LLM analysis limit: ${LLM_ANALYSIS_LIMIT} concepts per cycle`);
+  }
 
   // Check initial balance
   const initialBalance = await publicClient.getBalance({ address: walletAddress });
@@ -107,6 +122,7 @@ async function main() {
   await sendAlert("Agent started", "info", {
     Wallet: walletAddress.slice(0, 10) + "...",
     Balance: `${(Number(initialBalance) / 1e18).toFixed(4)} ETH`,
+    "LLM Mode": ENABLE_LLM_SCORING ? "Enabled" : "Disabled",
   });
 
   // Main autonomous loop
@@ -144,30 +160,64 @@ async function main() {
       const concepts = await extractTrendingConcepts(contexts.monitor);
       log(`Trending concepts: ${concepts.slice(0, 5).join(", ")}`);
 
-      // 4. Score concepts
+      // 4. Get market conditions (needed for scoring and decision)
+      log("📈 Fetching market conditions...");
+      const marketConditions = await getMarketConditions();
+
+      // 5. Score concepts (with optional LLM enhancement)
       if (concepts.length > 0) {
-        log("🧠 Scoring concepts...");
-        await scoreConcepts(
-          contexts.analyzer,
-          concepts,
-          contexts.monitor.recentTokens
-        );
+        // Get market context for LLM-enhanced scoring
+        const topPerformers = contexts.monitor.recentTokens
+          .slice(0, 10)
+          .map((p) => p.memecoin.symbol);
+        const marketContext = {
+          recentLaunches: marketConditions.recentLaunches,
+          topPerformers,
+          hourlyVolume: marketConditions.hourlyVolume.toString(),
+        };
+
+        if (ENABLE_LLM_SCORING) {
+          log("🧠 Scoring concepts with LLM enhancement...");
+          await scoreConceptsWithLLM(
+            contexts.analyzer,
+            concepts,
+            contexts.monitor.recentTokens,
+            marketContext,
+            LLM_ANALYSIS_LIMIT
+          );
+        } else {
+          log("🧠 Scoring concepts...");
+          await scoreConcepts(
+            contexts.analyzer,
+            concepts,
+            contexts.monitor.recentTokens
+          );
+        }
+
         const topScored = contexts.analyzer.scoredConcepts[0];
         if (topScored) {
-          log(`Top concept: "${topScored.concept}" (score: ${topScored.score.toFixed(2)})`);
+          const llmInfo = topScored.factors?.llmScore
+            ? ` [LLM: ${topScored.factors.llmScore.toFixed(2)}]`
+            : "";
+          log(`Top concept: "${topScored.concept}" (score: ${topScored.score.toFixed(2)})${llmInfo}`);
+        }
+
+        // Clear LLM cache periodically to get fresh analysis
+        if (ENABLE_LLM_SCORING && cycleCount % CACHE_CLEAR_INTERVAL === 0) {
+          log("Clearing LLM analysis cache for fresh data...");
+          clearAnalysisCache(contexts.analyzer);
         }
       }
 
-      // 5. Decision: Should we launch?
+      // 6. Decision: Should we launch?
       log("🎯 Making launch decision...");
-      const marketConditions = await getMarketConditions();
       const decision = await makeDecision(agentState, marketConditions);
       log(
         `Decision: ${decision.shouldLaunch ? "LAUNCH" : "WAIT"} (confidence: ${decision.confidence.toFixed(2)})`
       );
       log(`Reasoning: ${decision.reasoning}`);
 
-      // 6. If decision is to launch
+      // 7. If decision is to launch
       if (
         decision.shouldLaunch &&
         decision.confidence > SAFETY_LIMITS.minConfidenceThreshold &&
@@ -240,7 +290,7 @@ async function main() {
         }
       }
 
-      // 7. Monitor positions (every cycle)
+      // 8. Monitor positions (every cycle)
       if (contexts.positionManager.activePositions.length > 0) {
         log("📈 Monitoring active positions...");
         const positionResults = await monitorPositions(
@@ -261,7 +311,7 @@ async function main() {
         }
       }
 
-      // 8. Portfolio status
+      // 9. Portfolio status
       const portfolio = await getPortfolioStatus(contexts.positionManager);
       log(
         `Portfolio: ${portfolio.activePositions} active, P&L: ${portfolio.totalPnL} ETH`
