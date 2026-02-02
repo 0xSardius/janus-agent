@@ -8,7 +8,10 @@
     "build": "pnpm --filter @janus/agent build",
     "start": "pnpm --filter @janus/agent start",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm --filter @janus/agent test",
+    "test:watch": "pnpm --filter @janus/agent test:watch",
+    "test:coverage": "pnpm --filter @janus/agent test:coverage"
   },
   "devDependencies": {
     "typescript": "^5.3.3"
