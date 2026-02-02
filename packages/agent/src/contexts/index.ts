@@ -26,18 +26,22 @@ export {
   analyzeConceptWithLLM,
 } from "./analyzer.js";
 
-// Creator Context - Generates token metadata
+// Creator Context - Generates token metadata (LLM + Image powered)
 export {
   type CreatorState,
   type IterationType,
   type GenerationConfig,
   createCreatorState,
   generateTokenConcept,
-  generateTokenImage,
+  generateImage,
+  regenerateImage,
   getNextPendingToken,
+  peekNextPendingToken,
   clearPendingTokens,
-  generateConceptWithLLM,
-  generateImageViaX402,
+  getPendingCount,
+  getRecentGenerations,
+  getUsedConcepts,
+  generateTokenConceptFallback,
 } from "./creator.js";
 
 // Launcher Context - Executes Flaunch SDK launches

@@ -375,12 +375,12 @@ async function getTokenPriceETH(tokenAddress: string): Promise<bigint> {
     }),
   });
 
-  const { data } = await response.json();
-  if (!data?.pools?.[0]) {
+  const result = await response.json() as { data?: { pools?: Array<{ sqrtPriceX96: string }> } };
+  if (!result.data?.pools?.[0]) {
     return BigInt(0);
   }
 
-  return calculatePriceFromSqrtPriceX96(data.pools[0].sqrtPriceX96);
+  return calculatePriceFromSqrtPriceX96(result.data.pools[0].sqrtPriceX96);
 }
 
 function calculatePriceFromSqrtPriceX96(sqrtPriceX96: string): bigint {

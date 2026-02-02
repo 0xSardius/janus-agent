@@ -234,8 +234,8 @@ export async function getMarketConditions(): Promise<MarketConditions> {
       body: JSON.stringify({ query, variables: { since: oneHourAgo } }),
     });
 
-    const { data } = await response.json();
-    const pools = data?.pools || [];
+    const result = await response.json() as { data?: { pools?: Array<{ id: string; volumeETH: string }> } };
+    const pools = result.data?.pools || [];
 
     // Calculate hourly volume
     const hourlyVolume = pools.reduce(

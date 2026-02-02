@@ -102,7 +102,7 @@ async function querySubgraph<T>(
     throw new Error(`Subgraph query failed: ${response.statusText}`);
   }
 
-  const json = await response.json();
+  const json = await response.json() as { data?: T; errors?: unknown[] };
   if (json.errors) {
     throw new Error(`Subgraph query error: ${JSON.stringify(json.errors)}`);
   }

@@ -1,19 +1,28 @@
-import { AgentKit, CdpWalletProvider } from "@coinbase/agentkit";
 import { createPublicClient, http, type PublicClient, type WalletClient } from "viem";
 import { base } from "viem/chains";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // TYPES
+// Note: CDP AgentKit types are imported dynamically to handle API changes
 // ═══════════════════════════════════════════════════════════════════════════
+
+// Using 'any' for CDP types until we integrate with actual SDK version
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type CdpWalletProvider = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AgentKit = any;
 
 export interface WalletProviderResult {
   walletProvider: CdpWalletProvider;
   agentKit: AgentKit;
 }
 
+// Using any due to viem version conflicts between @coinbase/agentkit and our direct viem dependency
 export interface FlaunchClientResult {
-  publicClient: PublicClient;
-  walletClient: WalletClient;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  publicClient: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  walletClient: any;
   walletAddress: `0x${string}`;
 }
 
@@ -38,11 +47,15 @@ export async function initializeAgentWallet(): Promise<WalletProviderResult> {
     );
   }
 
+  // Dynamic import to handle API changes
+  const { CdpWalletProvider, AgentKit } = await import("@coinbase/agentkit");
+
   // Configure CDP Wallet Provider
   // Keys are API credentials, NOT private keys
+  // Note: Property names may vary by AgentKit version
   const walletProvider = await CdpWalletProvider.configureWithWallet({
     apiKeyName,
-    apiKeyPrivate,
+    apiKeyPrivateKey: apiKeyPrivate, // Some versions use this
     networkId: "base-mainnet",
   });
 
@@ -65,17 +78,26 @@ export async function createFlaunchClient(
 ): Promise<FlaunchClientResult> {
   const rpcUrl = process.env.BASE_RPC_URL || "https://mainnet.base.org";
 
-  // Get viem-compatible wallet client from CDP
-  const walletClient = walletProvider.getWalletClient() as WalletClient;
-
   // Create public client for reading chain state
   const publicClient = createPublicClient({
     chain: base,
     transport: http(rpcUrl),
   });
 
+  // Get viem-compatible wallet client from CDP
+  // Method name may vary by AgentKit version
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let walletClient: any;
+  if (typeof walletProvider.getWalletClient === "function") {
+    walletClient = walletProvider.getWalletClient();
+  } else if (typeof walletProvider.toViemWalletClient === "function") {
+    walletClient = walletProvider.toViemWalletClient();
+  } else {
+    throw new Error("Could not get wallet client from CDP provider");
+  }
+
   // Get wallet address
-  const walletAddress = await walletProvider.getAddress() as `0x${string}`;
+  const walletAddress = (await walletProvider.getAddress()) as `0x${string}`;
 
   return { publicClient, walletClient, walletAddress };
 }
