@@ -1,5 +1,11 @@
 import type { PoolData, ScoredConcept, LaunchCandidate } from "../types.js";
 import { SCORING_WEIGHTS, SAFETY_LIMITS } from "../constants.js";
+import {
+  analyzeConceptPotential,
+  extractConceptsFromTokens,
+  type ConceptAnalysis,
+  type ExtractedConcepts,
+} from "../ai/llm.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANALYZER STATE
@@ -9,6 +15,8 @@ export interface AnalyzerState {
   scoredConcepts: ScoredConcept[];
   launchQueue: LaunchCandidate[];
   historicalPerformance: Map<string, number>;
+  llmAnalysisCache: Map<string, ConceptAnalysis>;
+  extractedConcepts: ExtractedConcepts | null;
 }
 
 export function createAnalyzerState(): AnalyzerState {
@@ -16,6 +24,8 @@ export function createAnalyzerState(): AnalyzerState {
     scoredConcepts: [],
     launchQueue: [],
     historicalPerformance: new Map(),
+    llmAnalysisCache: new Map(),
+    extractedConcepts: null,
   };
 }
 
@@ -28,11 +38,12 @@ export interface ConceptScoreFactors {
   recencyScore: number;
   socialScore: number;
   noveltyScore: number;
+  llmScore?: number;
 }
 
 /**
  * Score a concept based on multiple factors
- * Phase 2: Add LLM-powered analysis and social signal integration
+ * Now includes LLM-powered analysis
  */
 export async function scoreConcept(
   concept: string,
@@ -45,7 +56,7 @@ export async function scoreConcept(
   // Recency score: prefer concepts from recently successful tokens
   const recencyScore = calculateRecencyScore(concept, relatedPools);
 
-  // Social score: placeholder for Phase 2 Twitter/Farcaster integration
+  // Social score: placeholder for social signal integration
   const socialScore = 0.5; // Default neutral score
 
   // Novelty score: penalize overused concepts
@@ -66,6 +77,48 @@ export async function scoreConcept(
       recencyScore,
       socialScore,
       noveltyScore,
+    },
+  };
+}
+
+/**
+ * Score a concept with LLM analysis enhancement
+ */
+export async function scoreConceptWithLLM(
+  state: AnalyzerState,
+  concept: string,
+  relatedPools: PoolData[],
+  historicalConcepts: Set<string>,
+  marketContext: { recentLaunches: number; topPerformers: string[]; hourlyVolume: string }
+): Promise<ScoredConcept> {
+  // Get base score
+  const baseScoredConcept = await scoreConcept(concept, relatedPools, historicalConcepts);
+
+  // Check cache for LLM analysis
+  let llmAnalysis = state.llmAnalysisCache.get(concept.toLowerCase());
+
+  if (!llmAnalysis) {
+    try {
+      console.log(`[Analyzer] Running LLM analysis for "${concept}"...`);
+      llmAnalysis = await analyzeConceptPotential(concept, marketContext);
+      state.llmAnalysisCache.set(concept.toLowerCase(), llmAnalysis);
+      console.log(`[Analyzer] LLM score: ${llmAnalysis.overallScore.toFixed(2)} - ${llmAnalysis.recommendation}`);
+    } catch (error) {
+      console.error(`[Analyzer] LLM analysis failed for "${concept}":`, error);
+      // Fall back to base score
+      return baseScoredConcept;
+    }
+  }
+
+  // Blend LLM score with base score (60% base, 40% LLM)
+  const blendedScore = baseScoredConcept.score * 0.6 + llmAnalysis.overallScore * 0.4;
+
+  return {
+    concept,
+    score: Math.min(1, Math.max(0, blendedScore)),
+    factors: {
+      ...baseScoredConcept.factors!,
+      llmScore: llmAnalysis.overallScore,
     },
   };
 }
@@ -93,6 +146,79 @@ export async function scoreConcepts(
   state.scoredConcepts = sorted;
 
   return sorted;
+}
+
+/**
+ * Score concepts with LLM enhancement (use for top candidates only to save API calls)
+ */
+export async function scoreConceptsWithLLM(
+  state: AnalyzerState,
+  concepts: string[],
+  relatedPools: PoolData[],
+  marketContext: { recentLaunches: number; topPerformers: string[]; hourlyVolume: string },
+  llmAnalysisLimit: number = 5 // Only analyze top N candidates with LLM
+): Promise<ScoredConcept[]> {
+  const historicalConcepts = new Set(
+    Array.from(state.historicalPerformance.keys())
+  );
+
+  // First pass: quick scoring without LLM
+  const quickScored = await Promise.all(
+    concepts.map((concept) =>
+      scoreConcept(concept, relatedPools, historicalConcepts)
+    )
+  );
+
+  // Sort to find top candidates
+  quickScored.sort((a, b) => b.score - a.score);
+
+  // Second pass: LLM analysis for top candidates
+  const topCandidates = quickScored.slice(0, llmAnalysisLimit);
+  const enhancedScores = await Promise.all(
+    topCandidates.map((sc) =>
+      scoreConceptWithLLM(state, sc.concept, relatedPools, historicalConcepts, marketContext)
+    )
+  );
+
+  // Combine enhanced top scores with remaining quick scores
+  const remaining = quickScored.slice(llmAnalysisLimit);
+  const allScored = [...enhancedScores, ...remaining];
+
+  // Re-sort after LLM enhancement
+  const sorted = allScored.sort((a, b) => b.score - a.score);
+  state.scoredConcepts = sorted;
+
+  return sorted;
+}
+
+/**
+ * Extract and analyze concepts from token data using LLM
+ */
+export async function extractAndAnalyzeConcepts(
+  state: AnalyzerState,
+  pools: PoolData[]
+): Promise<ExtractedConcepts> {
+  const tokenData = pools.map((p) => ({
+    symbol: p.memecoin.symbol,
+    name: p.memecoin.name,
+    volumeETH: p.volumeETH,
+  }));
+
+  console.log(`[Analyzer] Extracting concepts from ${tokenData.length} tokens with LLM...`);
+
+  try {
+    const extracted = await extractConceptsFromTokens(tokenData);
+    state.extractedConcepts = extracted;
+
+    console.log(`[Analyzer] Found ${extracted.concepts.length} concepts`);
+    console.log(`[Analyzer] Emerging themes: ${extracted.emergingThemes.join(", ")}`);
+
+    return extracted;
+  } catch (error) {
+    console.error("[Analyzer] LLM concept extraction failed:", error);
+    // Return empty result on failure
+    return { concepts: [], emergingThemes: [] };
+  }
 }
 
 /**
@@ -138,6 +264,23 @@ export function recordPerformance(
   const alpha = 0.3;
   const newScore = alpha * performanceScore + (1 - alpha) * existing;
   state.historicalPerformance.set(concept.toLowerCase(), newScore);
+}
+
+/**
+ * Clear LLM analysis cache (call periodically to get fresh analysis)
+ */
+export function clearAnalysisCache(state: AnalyzerState): void {
+  state.llmAnalysisCache.clear();
+}
+
+/**
+ * Get cached LLM analysis for a concept
+ */
+export function getCachedAnalysis(
+  state: AnalyzerState,
+  concept: string
+): ConceptAnalysis | undefined {
+  return state.llmAnalysisCache.get(concept.toLowerCase());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -189,26 +332,39 @@ function calculateRecencyScore(concept: string, pools: PoolData[]): number {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PHASE 2 STUBS (To be implemented)
+// SOCIAL SIGNALS (placeholder for future integration)
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * TODO Phase 2: Fetch social signals from Twitter/Farcaster
+ * Fetch social signals from Twitter/Farcaster
+ * TODO: Integrate with x402-gated social APIs
  */
 export async function fetchSocialSignals(
   _concept: string
 ): Promise<{ mentions: number; sentiment: number }> {
-  // Placeholder - integrate with x402-gated social APIs
+  // Placeholder - will integrate with social APIs in future
   return { mentions: 0, sentiment: 0.5 };
 }
 
 /**
- * TODO Phase 2: Use LLM to analyze concept potential
+ * Legacy function for backwards compatibility
+ * @deprecated Use scoreConceptWithLLM instead
  */
 export async function analyzeConceptWithLLM(
-  _concept: string,
-  _context: string
+  concept: string,
+  context: string
 ): Promise<{ potential: number; reasoning: string }> {
-  // Placeholder - integrate with OpenAI/Dreams Router
-  return { potential: 0.5, reasoning: "LLM analysis not implemented" };
+  try {
+    const analysis = await analyzeConceptPotential(concept, {
+      recentLaunches: 0,
+      topPerformers: [],
+      hourlyVolume: "0",
+    });
+    return {
+      potential: analysis.overallScore,
+      reasoning: analysis.reasoning,
+    };
+  } catch {
+    return { potential: 0.5, reasoning: "LLM analysis failed" };
+  }
 }

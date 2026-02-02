@@ -47,6 +47,7 @@ export const ScoredConceptSchema = z.object({
     recencyScore: z.number(),
     socialScore: z.number(),
     noveltyScore: z.number(),
+    llmScore: z.number().optional(),
   }).optional(),
 });
 

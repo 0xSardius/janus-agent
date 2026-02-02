@@ -13,15 +13,21 @@ export {
   filterViablePools,
 } from "./monitor.js";
 
-// Analyzer Context - Scores trending concepts
+// Analyzer Context - Scores trending concepts (LLM enhanced)
 export {
   type AnalyzerState,
+  type ConceptScoreFactors,
   createAnalyzerState,
   scoreConcept,
+  scoreConceptWithLLM,
   scoreConcepts,
+  scoreConceptsWithLLM,
+  extractAndAnalyzeConcepts,
   selectLaunchCandidate,
   getNextCandidate,
   recordPerformance,
+  clearAnalysisCache,
+  getCachedAnalysis,
   fetchSocialSignals,
   analyzeConceptWithLLM,
 } from "./analyzer.js";
