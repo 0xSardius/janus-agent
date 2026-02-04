@@ -149,8 +149,10 @@ CDP_API_KEY_NAME=          # From portal.cdp.coinbase.com
 CDP_API_KEY_PRIVATE=       # From portal.cdp.coinbase.com
 BASE_RPC_URL=              # Alchemy or QuickNode
 FLAUNCH_SUBGRAPH_URL=      # Goldsky/The Graph endpoint
-OPENAI_API_KEY=            # For LLM concept generation
-REPLICATE_API_KEY=         # For image generation (optional)
+ANTHROPIC_API_KEY=         # For LLM concept generation (Claude)
+FAL_KEY=                   # For image generation (Fal.ai Flux)
+ENABLE_LLM_SCORING=        # true/false - toggle LLM-enhanced scoring
+LLM_ANALYSIS_LIMIT=        # Max concepts to analyze with LLM per cycle (default: 5)
 DISCORD_WEBHOOK_URL=       # For alerts (optional)
 ```
 
@@ -165,22 +167,57 @@ DISCORD_WEBHOOK_URL=       # For alerts (optional)
 
 ```json
 {
-  "@daydreamsai/core": "latest",
-  "@coinbase/agentkit": "latest",
-  "@flaunch/sdk": "latest",
-  "viem": "^2.0.0",
-  "zod": "^3.22.0",
-  "@ai-sdk/openai": "latest",
-  "bullmq": "latest"
+  "@coinbase/agentkit": "^0.2.0",
+  "viem": "^2.30.6",
+  "zod": "^3.24.2",
+  "@ai-sdk/anthropic": "^1.2.12",
+  "ai": "^4.3.16",
+  "@fal-ai/client": "^1.2.3",
+  "vitest": "^2.1.9"
 }
 ```
 
-## Implementation Priority
+## Implementation Progress
 
-Phase 1 (MVP): Monitor + Launcher + Position Manager + Railway deploy
-Phase 2: LLM concept generation + image pipeline + scoring engine
-Phase 3: Full autonomy + x402 + ERC-8004 + alerting
-Phase 4: Optimization + social signals + agent-as-a-service
+### Phase 1: Core Infrastructure (COMPLETE)
+- [x] Project scaffolding (pnpm monorepo, TypeScript, vitest)
+- [x] Monitor Context - Flaunch subgraph polling, concept extraction
+- [x] Analyzer Context - Multi-factor scoring (volume, recency, social, novelty)
+- [x] Creator Context - Token metadata generation with fallback patterns
+- [x] Launcher Context - Flaunch SDK integration (stub, needs real SDK)
+- [x] Position Manager Context - Buy/sell logic, staged exits, stop loss
+- [x] Decision Engine - Weighted launch decisions
+- [x] Safety module - Balance checks, gas limits, circuit breakers
+- [x] Alerts module - Discord/Slack webhook support
+- [x] Main runner loop - Full autonomous cycle
+
+### Phase 2: LLM Enhancement (COMPLETE)
+- [x] Anthropic Claude integration (Vercel AI SDK)
+- [x] Fal.ai Flux Schnell image generation
+- [x] LLM-powered concept generation (name/symbol/description)
+- [x] LLM-enhanced concept scoring (blended 60% base + 40% LLM)
+- [x] Runner integration with `ENABLE_LLM_SCORING` toggle
+- [x] Test suite: 105 tests passing
+
+### Phase 3: Full Autonomy (NOT STARTED)
+- [ ] x402 micropayment integration
+- [ ] ERC-8004 on-chain agent identity
+- [ ] Real Discord/Slack alerting setup
+- [ ] CDP wallet funding and testing
+- [ ] Railway deployment
+
+### Phase 4: Optimization (NOT STARTED)
+- [ ] Social signals (Twitter/Farcaster integration)
+- [ ] Performance tracking and learning
+- [ ] Agent-as-a-service API
+
+## Resuming Development
+
+When returning to this project:
+1. Run `pnpm install` to ensure dependencies are up to date
+2. Run `pnpm test` to verify everything still works (105 tests)
+3. Check `.env.example` for required environment variables
+4. Phase 3 is next: Start with x402 client or ERC-8004 identity
 
 ## Reference Docs
 
