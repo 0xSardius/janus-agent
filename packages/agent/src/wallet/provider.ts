@@ -125,3 +125,34 @@ export async function getWalletBalance(
 ): Promise<bigint> {
   return publicClient.getBalance({ address });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WALLET CONNECTION TEST
+// Verifies wallet provider and public client are working
+// ═══════════════════════════════════════════════════════════════════════════
+
+export async function testWalletConnection(
+  walletProvider: CdpWalletProvider,
+  publicClient: PublicClient
+): Promise<{ connected: boolean; address: string; chainId: number; error?: string }> {
+  try {
+    const address = await walletProvider.getAddress();
+    const chainId = await publicClient.getChainId();
+
+    // Verify we can read from the chain
+    await publicClient.getBalance({ address });
+
+    return {
+      connected: true,
+      address,
+      chainId,
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      address: "",
+      chainId: 0,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}

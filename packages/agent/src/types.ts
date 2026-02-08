@@ -158,3 +158,31 @@ export const LaunchDecisionSchema = z.object({
 });
 
 export type LaunchDecision = z.infer<typeof LaunchDecisionSchema>;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// x402 PAYMENT RECORDS
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const X402PaymentRecordSchema = z.object({
+  url: z.string(),
+  amount: z.string(),
+  currency: z.string(),
+  timestamp: z.number(),
+  txHash: z.string().optional(),
+});
+
+export type X402PaymentRecord = z.infer<typeof X402PaymentRecordSchema>;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERC-8004 AGENT IDENTITY
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const AgentIdentitySchema = z.object({
+  agentId: z.bigint(),
+  registryAddress: z.string(),
+  walletAddress: z.string(),
+  registeredAt: z.number(),
+  txHash: z.string(),
+});
+
+export type AgentIdentity = z.infer<typeof AgentIdentitySchema>;

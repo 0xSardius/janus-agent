@@ -35,7 +35,16 @@ export {
   createFlaunchClient,
   getWalletStatus,
   getWalletBalance,
+  testWalletConnection,
 } from "./wallet/provider.js";
+
+// Wallet Funding Guide
+export {
+  checkWalletReadiness,
+  estimateRequiredFunding,
+  type WalletReadinessReport,
+  type FundingEstimate,
+} from "./wallet/funding-guide.js";
 
 // Contexts
 export * from "./contexts/index.js";
@@ -55,9 +64,37 @@ export {
 // Alerts
 export {
   sendAlert,
+  sendDiscordAlert,
+  sendSlackAlert,
   alertLaunchSuccess,
   alertPositionOpened,
   alertPositionExit,
   alertLowBalance,
   alertError,
+  alertX402Payment,
+  alertIdentityRegistered,
+  alertWalletFunded,
+  alertShutdown,
 } from "./alerts.js";
+
+// x402 Micropayments
+export {
+  type X402ClientConfig,
+  type X402Client,
+  type WalletProviderSigner,
+  createClientEvmSigner,
+  createX402Fetch,
+  SpendTracker,
+} from "./x402/index.js";
+
+// ERC-8004 Identity
+export {
+  type IdentityConfig,
+  type AgentRegistrationInfo,
+  getExistingIdentity,
+  registerAgentIdentity,
+  updateAgentURI,
+  generateAgentRegistrationJSON,
+  getRegistryAddress,
+  IDENTITY_REGISTRY_ABI,
+} from "./identity/index.js";

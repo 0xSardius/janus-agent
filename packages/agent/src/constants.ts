@@ -78,3 +78,28 @@ export const INTERVALS = {
   pollIntervalMs: 30_000, // Poll subgraph every 30 seconds
   feeClaimIntervalMs: 24 * 60 * 60 * 1000, // Claim fees daily
 } as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// x402 MICROPAYMENT CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const X402_CONFIG = {
+  maxPaymentPerRequestUSD: 0.10, // Max $0.10 per request
+  maxDailyPaymentsUSD: 5.00, // Max $5.00/day in micropayments
+  facilitatorUrl: "https://x402.org/facilitator", // Default facilitator
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ERC-8004 ON-CHAIN IDENTITY CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const ERC8004_CONFIG = {
+  // Registry addresses
+  ethereumRegistry: "0x8004e3e07100dFbE22800a5025b1A8a2037aa65C" as `0x${string}`,
+  // Base registry can be overridden via env var
+  defaultBaseRegistry: "0x8004e3e07100dFbE22800a5025b1A8a2037aa65C" as `0x${string}`,
+
+  // Agent metadata
+  agentName: "Janus Token Launcher",
+  agentDescription: "Autonomous meme token launcher agent on Base via Flaunch",
+} as const;

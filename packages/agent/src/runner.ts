@@ -1,5 +1,6 @@
-import { createServer } from "http";
+import { createServer, type Server } from "http";
 import { initializeAgentWallet, createFlaunchClient } from "./wallet/provider.js";
+import { checkWalletReadiness, estimateRequiredFunding } from "./wallet/funding-guide.js";
 import {
   createMonitorState,
   createAnalyzerState,
@@ -28,8 +29,18 @@ import {
   alertPositionOpened,
   alertPositionExit,
   alertError,
+  alertIdentityRegistered,
+  alertShutdown,
 } from "./alerts.js";
 import { SAFETY_LIMITS, INTERVALS } from "./constants.js";
+import { createClientEvmSigner, createX402Fetch, type X402Client } from "./x402/index.js";
+import {
+  getExistingIdentity,
+  registerAgentIdentity,
+  getRegistryAddress,
+  generateAgentRegistrationJSON,
+  type IdentityConfig,
+} from "./identity/index.js";
 import type { AgentState } from "./types.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -39,6 +50,7 @@ import type { AgentState } from "./types.js";
 const ENABLE_LLM_SCORING = process.env.ENABLE_LLM_SCORING === "true";
 const LLM_ANALYSIS_LIMIT = parseInt(process.env.LLM_ANALYSIS_LIMIT || "5", 10);
 const CACHE_CLEAR_INTERVAL = 12; // Clear LLM cache every 12 cycles (~12 min)
+const ENABLE_IDENTITY_REGISTRATION = process.env.ENABLE_IDENTITY_REGISTRATION === "true";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AGENT STATE CONTAINER
@@ -93,11 +105,42 @@ function log(message: string, level: "info" | "warn" | "error" = "info"): void {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// GRACEFUL SHUTDOWN
+// ═══════════════════════════════════════════════════════════════════════════
+
+let isShuttingDown = false;
+let healthServer: Server | null = null;
+
+async function gracefulShutdown(signal: string): Promise<void> {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+
+  log(`Received ${signal}. Shutting down gracefully...`, "warn");
+
+  try {
+    await alertShutdown(`${signal} received`);
+  } catch {
+    // Best effort alert
+  }
+
+  if (healthServer) {
+    healthServer.close();
+  }
+
+  log("Shutdown complete.");
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+// ═══════════════════════════════════════════════════════════════════════════
 // MAIN AUTONOMOUS LOOP
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function main() {
   log("🚀 Starting Autonomous Token Launcher Agent...");
+  const startTime = Date.now();
 
   // Initialize CDP wallet
   log("Initializing CDP wallet...");
@@ -105,6 +148,78 @@ async function main() {
   const { publicClient, walletClient, walletAddress } =
     await createFlaunchClient(walletProvider);
   log(`📍 Agent wallet: ${walletAddress}`);
+
+  // ─── Wallet Readiness Check ──────────────────────────────────────────
+  log("Checking wallet readiness...");
+  const readiness = await checkWalletReadiness(publicClient, walletAddress);
+  if (readiness.isReady) {
+    log(`✅ Wallet ready: ${readiness.ethBalanceFormatted}`);
+  } else {
+    log(`⚠️ Wallet not fully funded:`, "warn");
+    for (const issue of readiness.issues) {
+      log(`  - ${issue}`, "warn");
+    }
+    for (const rec of readiness.recommendations) {
+      log(`  → ${rec}`, "info");
+    }
+    log("Continuing in monitoring-only mode...", "warn");
+  }
+
+  // ─── x402 Micropayment Client ────────────────────────────────────────
+  let x402Client: X402Client | null = null;
+  try {
+    const signer = createClientEvmSigner(walletProvider);
+    x402Client = createX402Fetch(signer);
+    log("x402 micropayment client initialized");
+  } catch (error) {
+    log(`x402 init skipped: ${error}`, "warn");
+  }
+
+  // ─── ERC-8004 Identity Registration ──────────────────────────────────
+  if (ENABLE_IDENTITY_REGISTRATION) {
+    log("Checking on-chain identity (ERC-8004)...");
+    const registryAddress = getRegistryAddress();
+
+    try {
+      // Check if already registered
+      const existingId = process.env.ERC8004_AGENT_ID
+        ? BigInt(process.env.ERC8004_AGENT_ID)
+        : await getExistingIdentity(registryAddress, walletAddress, publicClient);
+
+      if (existingId !== null) {
+        log(`Identity already registered: Agent ID ${existingId}`);
+      } else {
+        // Generate registration JSON
+        const regJson = generateAgentRegistrationJSON({
+          name: "Janus Token Launcher",
+          description: "Autonomous meme token launcher agent on Base via Flaunch",
+          walletAddress,
+          services: ["token-launch", "position-management", "trend-analysis"],
+          x402Enabled: x402Client !== null,
+          version: "0.1.0",
+        });
+        log(`Registration JSON: ${JSON.stringify(regJson)}`);
+
+        // Register on-chain
+        const agentURI = process.env.AGENT_URI || `data:application/json,${encodeURIComponent(JSON.stringify(regJson))}`;
+        const config: IdentityConfig = {
+          registryAddress,
+          agentURI,
+        };
+
+        const identity = await registerAgentIdentity(
+          config,
+          publicClient,
+          walletClient,
+          walletAddress
+        );
+        log(`✅ Registered on-chain! Agent ID: ${identity.agentId}, TX: ${identity.txHash}`);
+        await alertIdentityRegistered(identity.agentId.toString(), registryAddress);
+      }
+    } catch (error) {
+      log(`Identity registration skipped: ${error}`, "warn");
+    }
+  }
 
   // Initialize contexts
   const contexts = createAgentContexts();
@@ -123,11 +238,13 @@ async function main() {
     Wallet: walletAddress.slice(0, 10) + "...",
     Balance: `${(Number(initialBalance) / 1e18).toFixed(4)} ETH`,
     "LLM Mode": ENABLE_LLM_SCORING ? "Enabled" : "Disabled",
+    "x402": x402Client ? "Enabled" : "Disabled",
+    "Identity": ENABLE_IDENTITY_REGISTRATION ? "Enabled" : "Disabled",
   });
 
   // Main autonomous loop
   let cycleCount = 0;
-  while (true) {
+  while (!isShuttingDown) {
     cycleCount++;
     const cycleStart = Date.now();
     log(`\n═══ Cycle ${cycleCount} ═══`);
@@ -333,13 +450,28 @@ async function main() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HEALTH CHECK SERVER
+// HEALTH CHECK SERVER (Enhanced)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const server = createServer((req, res) => {
+let cycleCount = 0;
+const startTime = Date.now();
+
+healthServer = createServer((req, res) => {
   if (req.url === "/health") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ status: "ok", timestamp: Date.now() }));
+    res.end(
+      JSON.stringify({
+        status: "ok",
+        timestamp: Date.now(),
+        uptime: Date.now() - startTime,
+        uptimeFormatted: `${Math.floor((Date.now() - startTime) / 1000)}s`,
+        version: "0.1.0",
+        features: {
+          llmScoring: ENABLE_LLM_SCORING,
+          identityRegistration: ENABLE_IDENTITY_REGISTRATION,
+        },
+      })
+    );
   } else {
     res.writeHead(404);
     res.end("Not found");
@@ -347,7 +479,7 @@ const server = createServer((req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
+healthServer.listen(PORT, () => {
   console.log(`Health check server listening on port ${PORT}`);
 });
 
@@ -355,7 +487,12 @@ server.listen(PORT, () => {
 // START AGENT
 // ═══════════════════════════════════════════════════════════════════════════
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("Fatal error:", error);
+  try {
+    await alertShutdown(`Fatal error: ${error instanceof Error ? error.message : String(error)}`);
+  } catch {
+    // Best effort
+  }
   process.exit(1);
 });

@@ -60,11 +60,15 @@ autonomous-token-launcher/
 │   │   │   ├── decision/
 │   │   │   │   └── engine.ts            # Launch decision logic
 │   │   │   ├── wallet/
-│   │   │   │   └── provider.ts          # CDP AgentKit wallet init
+│   │   │   │   ├── provider.ts          # CDP AgentKit wallet init
+│   │   │   │   └── funding-guide.ts     # Wallet readiness & funding estimates
 │   │   │   ├── x402/
-│   │   │   │   └── client.ts            # x402 payment middleware
+│   │   │   │   ├── client.ts            # x402 payment fetch wrapper + spend tracking
+│   │   │   │   └── index.ts             # Barrel export
 │   │   │   ├── identity/
-│   │   │   │   └── erc8004.ts           # On-chain agent registration
+│   │   │   │   ├── abi.ts               # ERC-8004 IdentityRegistry ABI
+│   │   │   │   ├── erc8004.ts           # On-chain agent registration & URI
+│   │   │   │   └── index.ts             # Barrel export
 │   │   │   ├── safety.ts                # Limits & circuit breakers
 │   │   │   ├── alerts.ts                # Discord/Slack webhooks
 │   │   │   ├── runner.ts                # Main autonomous loop
@@ -154,6 +158,11 @@ FAL_KEY=                   # For image generation (Fal.ai Flux)
 ENABLE_LLM_SCORING=        # true/false - toggle LLM-enhanced scoring
 LLM_ANALYSIS_LIMIT=        # Max concepts to analyze with LLM per cycle (default: 5)
 DISCORD_WEBHOOK_URL=       # For alerts (optional)
+SLACK_WEBHOOK_URL=         # For Slack alerts (optional)
+ENABLE_IDENTITY_REGISTRATION= # Enable ERC-8004 registration at startup
+AGENT_URI=                 # Agent metadata URI for ERC-8004
+BASE_IDENTITY_REGISTRY=    # Override default Base identity registry
+ERC8004_AGENT_ID=          # Set after first registration
 ```
 
 ## Budget: $200 Experiment
@@ -173,7 +182,9 @@ DISCORD_WEBHOOK_URL=       # For alerts (optional)
   "@ai-sdk/anthropic": "^1.2.12",
   "ai": "^4.3.16",
   "@fal-ai/client": "^1.2.3",
-  "vitest": "^2.1.9"
+  "vitest": "^2.1.9",
+  "@x402/fetch": "^2.3.0",
+  "@x402/evm": "^2.3.0"
 }
 ```
 
@@ -199,12 +210,13 @@ DISCORD_WEBHOOK_URL=       # For alerts (optional)
 - [x] Runner integration with `ENABLE_LLM_SCORING` toggle
 - [x] Test suite: 105 tests passing
 
-### Phase 3: Full Autonomy (NOT STARTED)
-- [ ] x402 micropayment integration
-- [ ] ERC-8004 on-chain agent identity
-- [ ] Real Discord/Slack alerting setup
-- [ ] CDP wallet funding and testing
-- [ ] Railway deployment
+### Phase 3: Full Autonomy (COMPLETE)
+- [x] x402 micropayment integration (client, signer adapter, spend tracking)
+- [x] ERC-8004 on-chain agent identity (registration, URI update, JSON schema)
+- [x] Slack + Discord alerting with routing, Phase 3 alert types
+- [x] CDP wallet readiness checks + funding guide
+- [x] Railway deployment (multi-stage Dockerfile, railway.toml, graceful shutdown)
+- [x] Test suite: 185 tests passing
 
 ### Phase 4: Optimization (NOT STARTED)
 - [ ] Social signals (Twitter/Farcaster integration)
@@ -215,9 +227,10 @@ DISCORD_WEBHOOK_URL=       # For alerts (optional)
 
 When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
-2. Run `pnpm test` to verify everything still works (105 tests)
-3. Check `.env.example` for required environment variables
-4. Phase 3 is next: Start with x402 client or ERC-8004 identity
+2. Run `pnpm test` to verify everything still works (185 tests)
+3. Run `pnpm typecheck` to verify no type errors
+4. Check `.env.example` for required environment variables
+5. Phase 4 is next: Social signals, performance tracking, agent-as-a-service
 
 ## Reference Docs
 
