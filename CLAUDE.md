@@ -53,12 +53,12 @@ autonomous-token-launcher/
 │   │   ├── src/
 │   │   │   ├── contexts/
 │   │   │   │   ├── monitor.ts           # Flaunch subgraph polling
-│   │   │   │   ├── analyzer.ts          # Trend scoring
+│   │   │   │   ├── analyzer.ts          # Trend scoring (+ social provider, custom weights)
 │   │   │   │   ├── creator.ts           # LLM concept + image generation
 │   │   │   │   ├── launcher.ts          # Flaunch SDK launches
 │   │   │   │   └── position-manager.ts  # Buy/sell/monitor positions
 │   │   │   ├── decision/
-│   │   │   │   └── engine.ts            # Launch decision logic
+│   │   │   │   └── engine.ts            # Launch decision logic (+ performance state)
 │   │   │   ├── wallet/
 │   │   │   │   ├── provider.ts          # CDP AgentKit wallet init
 │   │   │   │   └── funding-guide.ts     # Wallet readiness & funding estimates
@@ -69,9 +69,23 @@ autonomous-token-launcher/
 │   │   │   │   ├── abi.ts               # ERC-8004 IdentityRegistry ABI
 │   │   │   │   ├── erc8004.ts           # On-chain agent registration & URI
 │   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── social/
+│   │   │   │   ├── farcaster.ts         # Neynar API client for Farcaster signals
+│   │   │   │   ├── twitter.ts           # Twitter API v2 client
+│   │   │   │   ├── signals.ts           # Unified provider with caching + degradation
+│   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── performance/
+│   │   │   │   ├── tracker.ts           # Performance scoring, categorization, correlations
+│   │   │   │   ├── auto-tuner.ts        # Weight optimization with bounded normalization
+│   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── api/
+│   │   │   │   ├── middleware.ts         # x402 payment verification
+│   │   │   │   ├── routes.ts            # /api/trends, scores, portfolio, performance
+│   │   │   │   ├── server.ts            # HTTP server with router + health check
+│   │   │   │   └── index.ts             # Barrel export
 │   │   │   ├── safety.ts                # Limits & circuit breakers
 │   │   │   ├── alerts.ts                # Discord/Slack webhooks
-│   │   │   ├── runner.ts                # Main autonomous loop
+│   │   │   ├── runner.ts                # Main autonomous loop + API server
 │   │   │   └── index.ts                 # Agent initialization
 │   │   ├── Dockerfile
 │   │   ├── railway.toml
@@ -163,6 +177,10 @@ ENABLE_IDENTITY_REGISTRATION= # Enable ERC-8004 registration at startup
 AGENT_URI=                 # Agent metadata URI for ERC-8004
 BASE_IDENTITY_REGISTRY=    # Override default Base identity registry
 ERC8004_AGENT_ID=          # Set after first registration
+NEYNAR_API_KEY=            # Farcaster social signals (Neynar)
+TWITTER_BEARER_TOKEN=      # Twitter/X API v2 bearer token
+ENABLE_AUTO_TUNER=         # true/false - enable weight auto-tuning
+ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
 ```
 
 ## Budget: $200 Experiment
@@ -218,19 +236,30 @@ ERC8004_AGENT_ID=          # Set after first registration
 - [x] Railway deployment (multi-stage Dockerfile, railway.toml, graceful shutdown)
 - [x] Test suite: 185 tests passing
 
-### Phase 4: Optimization (NOT STARTED)
-- [ ] Social signals (Twitter/Farcaster integration)
-- [ ] Performance tracking and learning
-- [ ] Agent-as-a-service API
+### Phase 4: Optimization (COMPLETE)
+- [x] Social signals — Farcaster (Neynar) + Twitter API v2 with caching, weighted blending, graceful degradation
+- [x] Performance tracking — Profit-to-score mapping, concept categorization, factor correlation tracking, EMA-based learning
+- [x] Auto-tuner — Weight optimization bounded [0.1, 0.5] with 0.05 adjustment rate per 6h cycle
+- [x] Agent-as-a-service API — /api/trends, /api/scores/:concept, /api/portfolio, /api/performance
+- [x] x402 payment gating middleware for API endpoints ($0.01/request)
+- [x] Full runner integration — social provider, performance recording, auto-tuner, API server replaces health-only server
+- [x] Test suite: 269 tests passing
+
+### Phase 5: Production Hardening (NOT STARTED)
+- [ ] Real end-to-end testing with funded CDP wallet on Base
+- [ ] Flaunch SDK integration (replace stubs with real SDK calls)
+- [ ] Dashboard UI (Next.js monitoring interface)
+- [ ] Advanced social signals (Farcaster frames, Twitter spaces)
+- [ ] Multi-chain support
 
 ## Resuming Development
 
 When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
-2. Run `pnpm test` to verify everything still works (185 tests)
+2. Run `pnpm test` to verify everything still works (269 tests)
 3. Run `pnpm typecheck` to verify no type errors
 4. Check `.env.example` for required environment variables
-5. Phase 4 is next: Social signals, performance tracking, agent-as-a-service
+5. Phase 5 is next: Production hardening, real SDK integration, dashboard
 
 ## Reference Docs
 
