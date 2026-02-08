@@ -93,6 +93,40 @@ export const X402_CONFIG = {
 // ERC-8004 ON-CHAIN IDENTITY CONFIG
 // ═══════════════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════════════
+// SOCIAL SIGNALS CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const SOCIAL_CONFIG = {
+  cacheTTLMs: 5 * 60 * 1000, // 5-minute cache
+  farcasterWeight: 0.6,
+  twitterWeight: 0.4,
+  defaultScore: 0.5, // Neutral when no APIs available
+  farcasterBaseUrl: "https://api.neynar.com/v2",
+  twitterBaseUrl: "https://api.twitter.com/2",
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTO-TUNER CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const AUTO_TUNER_CONFIG = {
+  minSampleSize: 10, // Minimum results before tuning
+  adjustmentRate: 0.05, // Max weight change per tune cycle
+  minWeight: 0.1, // Minimum allowed weight
+  maxWeight: 0.5, // Maximum allowed weight
+  tuneIntervalMs: 6 * 60 * 60 * 1000, // 6 hours between tunes
+} as const;
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API CONFIG
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const API_CONFIG = {
+  pricePerRequestUSD: 0.01, // $0.01 per API request
+  enableGatingDefault: false, // Disabled by default
+} as const;
+
 export const ERC8004_CONFIG = {
   // Registry addresses
   ethereumRegistry: "0x8004e3e07100dFbE22800a5025b1A8a2037aa65C" as `0x${string}`,

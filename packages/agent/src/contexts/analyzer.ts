@@ -6,6 +6,7 @@ import {
   type ConceptAnalysis,
   type ExtractedConcepts,
 } from "../ai/llm.js";
+import type { SocialSignalProvider } from "../social/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ANALYZER STATE
@@ -41,6 +42,11 @@ export interface ConceptScoreFactors {
   llmScore?: number;
 }
 
+export interface ScoreConceptOptions {
+  socialSignalProvider?: SocialSignalProvider;
+  weights?: { volume: number; recency: number; social: number; novelty: number };
+}
+
 /**
  * Score a concept based on multiple factors
  * Now includes LLM-powered analysis
@@ -48,26 +54,31 @@ export interface ConceptScoreFactors {
 export async function scoreConcept(
   concept: string,
   relatedPools: PoolData[],
-  historicalConcepts: Set<string>
+  historicalConcepts: Set<string>,
+  options?: ScoreConceptOptions
 ): Promise<ScoredConcept> {
+  const weights = options?.weights || SCORING_WEIGHTS;
+
   // Volume score: based on total volume of tokens with this concept
   const volumeScore = calculateVolumeScore(concept, relatedPools);
 
   // Recency score: prefer concepts from recently successful tokens
   const recencyScore = calculateRecencyScore(concept, relatedPools);
 
-  // Social score: placeholder for social signal integration
-  const socialScore = 0.5; // Default neutral score
+  // Social score: real data if provider available, else neutral
+  const socialScore = options?.socialSignalProvider
+    ? await options.socialSignalProvider.getScore(concept)
+    : 0.5;
 
   // Novelty score: penalize overused concepts
   const noveltyScore = historicalConcepts.has(concept.toLowerCase()) ? 0.3 : 0.8;
 
   // Weighted total
   const score =
-    volumeScore * SCORING_WEIGHTS.volume +
-    recencyScore * SCORING_WEIGHTS.recency +
-    socialScore * SCORING_WEIGHTS.social +
-    noveltyScore * SCORING_WEIGHTS.novelty;
+    volumeScore * weights.volume +
+    recencyScore * weights.recency +
+    socialScore * weights.social +
+    noveltyScore * weights.novelty;
 
   return {
     concept,
@@ -89,10 +100,11 @@ export async function scoreConceptWithLLM(
   concept: string,
   relatedPools: PoolData[],
   historicalConcepts: Set<string>,
-  marketContext: { recentLaunches: number; topPerformers: string[]; hourlyVolume: string }
+  marketContext: { recentLaunches: number; topPerformers: string[]; hourlyVolume: string },
+  options?: ScoreConceptOptions
 ): Promise<ScoredConcept> {
   // Get base score
-  const baseScoredConcept = await scoreConcept(concept, relatedPools, historicalConcepts);
+  const baseScoredConcept = await scoreConcept(concept, relatedPools, historicalConcepts, options);
 
   // Check cache for LLM analysis
   let llmAnalysis = state.llmAnalysisCache.get(concept.toLowerCase());
@@ -129,7 +141,8 @@ export async function scoreConceptWithLLM(
 export async function scoreConcepts(
   state: AnalyzerState,
   concepts: string[],
-  relatedPools: PoolData[]
+  relatedPools: PoolData[],
+  options?: ScoreConceptOptions
 ): Promise<ScoredConcept[]> {
   const historicalConcepts = new Set(
     Array.from(state.historicalPerformance.keys())
@@ -137,7 +150,7 @@ export async function scoreConcepts(
 
   const scored = await Promise.all(
     concepts.map((concept) =>
-      scoreConcept(concept, relatedPools, historicalConcepts)
+      scoreConcept(concept, relatedPools, historicalConcepts, options)
     )
   );
 
@@ -156,7 +169,8 @@ export async function scoreConceptsWithLLM(
   concepts: string[],
   relatedPools: PoolData[],
   marketContext: { recentLaunches: number; topPerformers: string[]; hourlyVolume: string },
-  llmAnalysisLimit: number = 5 // Only analyze top N candidates with LLM
+  llmAnalysisLimit: number = 5, // Only analyze top N candidates with LLM
+  options?: ScoreConceptOptions
 ): Promise<ScoredConcept[]> {
   const historicalConcepts = new Set(
     Array.from(state.historicalPerformance.keys())
@@ -165,7 +179,7 @@ export async function scoreConceptsWithLLM(
   // First pass: quick scoring without LLM
   const quickScored = await Promise.all(
     concepts.map((concept) =>
-      scoreConcept(concept, relatedPools, historicalConcepts)
+      scoreConcept(concept, relatedPools, historicalConcepts, options)
     )
   );
 
@@ -176,7 +190,7 @@ export async function scoreConceptsWithLLM(
   const topCandidates = quickScored.slice(0, llmAnalysisLimit);
   const enhancedScores = await Promise.all(
     topCandidates.map((sc) =>
-      scoreConceptWithLLM(state, sc.concept, relatedPools, historicalConcepts, marketContext)
+      scoreConceptWithLLM(state, sc.concept, relatedPools, historicalConcepts, marketContext, options)
     )
   );
 
@@ -329,21 +343,6 @@ function calculateRecencyScore(concept: string, pools: PoolData[]): number {
   if (ageHours < 1) return 1.0;
   if (ageHours > 48) return 0.3;
   return 1.0 - (ageHours / 48) * 0.7;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SOCIAL SIGNALS (placeholder for future integration)
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * Fetch social signals from Twitter/Farcaster
- * TODO: Integrate with x402-gated social APIs
- */
-export async function fetchSocialSignals(
-  _concept: string
-): Promise<{ mentions: number; sentiment: number }> {
-  // Placeholder - will integrate with social APIs in future
-  return { mentions: 0, sentiment: 0.5 };
 }
 
 /**

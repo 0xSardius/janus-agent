@@ -98,3 +98,51 @@ export {
   getRegistryAddress,
   IDENTITY_REGISTRY_ABI,
 } from "./identity/index.js";
+
+// Social Signals
+export {
+  createSocialSignalProvider,
+  fetchFarcasterSignals,
+  normalizeFarcasterScore,
+  fetchTwitterSignals,
+  normalizeTwitterScore,
+  type SocialSignalProvider,
+  type SocialSignalConfig,
+  type SocialSignalDetails,
+  type FarcasterSignal,
+  type FarcasterConfig,
+  type TwitterSignal,
+  type TwitterConfig,
+} from "./social/index.js";
+
+// Performance Tracking
+export {
+  createPerformanceState,
+  calculatePerformanceScore,
+  categorizeConcept,
+  recordPositionPerformance,
+  getRecentSuccessRate,
+  shouldTune,
+  calculateWeightAdjustments,
+  normalizeWeights,
+  type PerformanceState,
+  type PerformanceResult,
+  type CategoryPerformance,
+  type ScoringWeights,
+  type TunerConfig,
+  type TuneResult,
+} from "./performance/index.js";
+
+// API Server
+export {
+  createApiServer,
+  verifyX402Payment,
+  send402Response,
+  handleTrends,
+  handleScoreConcept,
+  handlePortfolio,
+  handlePerformance,
+  type ApiServerConfig,
+  type ApiContext,
+  type X402GatingConfig,
+} from "./api/index.js";

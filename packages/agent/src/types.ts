@@ -106,6 +106,7 @@ export const PositionSchema = z.object({
   tranchesSold: z.number(),
   totalSoldETH: z.bigint(),
   status: PositionStatusSchema,
+  concept: z.string().optional(),
 });
 
 export type PositionStatus = z.infer<typeof PositionStatusSchema>;

@@ -5,6 +5,8 @@ import type {
   MarketConditions,
   ScoredConcept,
 } from "../types.js";
+import type { PerformanceState } from "../performance/index.js";
+import { getRecentSuccessRate } from "../performance/index.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DECISION THRESHOLDS
@@ -47,10 +49,11 @@ interface DecisionFactors {
  */
 export async function makeDecision(
   currentState: AgentState,
-  marketConditions: MarketConditions
+  marketConditions: MarketConditions,
+  performanceState?: PerformanceState
 ): Promise<LaunchDecision> {
   // Calculate decision factors
-  const factors = calculateFactors(currentState, marketConditions);
+  const factors = calculateFactors(currentState, marketConditions, performanceState);
 
   // Weighted decision matrix
   const score =
@@ -90,7 +93,8 @@ export async function makeDecision(
 
 function calculateFactors(
   state: AgentState,
-  market: MarketConditions
+  market: MarketConditions,
+  performanceState?: PerformanceState
 ): DecisionFactors {
   const timeSinceLastLaunch = Date.now() - state.lastLaunchTimestamp;
 
@@ -99,8 +103,10 @@ function calculateFactors(
     hasEnoughGas: state.ethBalance > SAFETY_LIMITS.minEthBalance,
     hasEnoughUSDC: state.usdcBalance > BigInt(10) * BigInt(1e6), // 10 USDC
 
-    // Recent performance
-    recentSuccessRate: calculateRecentSuccessRate(state.launchedTokens),
+    // Recent performance — use real data if available
+    recentSuccessRate: performanceState
+      ? getRecentSuccessRate(performanceState)
+      : calculateRecentSuccessRate(state.launchedTokens),
 
     // Market timing
     isHighActivity: market.hourlyVolume > VOLUME_THRESHOLD,

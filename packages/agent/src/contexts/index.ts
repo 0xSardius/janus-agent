@@ -17,6 +17,7 @@ export {
 export {
   type AnalyzerState,
   type ConceptScoreFactors,
+  type ScoreConceptOptions,
   createAnalyzerState,
   scoreConcept,
   scoreConceptWithLLM,
@@ -28,7 +29,6 @@ export {
   recordPerformance,
   clearAnalysisCache,
   getCachedAnalysis,
-  fetchSocialSignals,
   analyzeConceptWithLLM,
 } from "./analyzer.js";
 

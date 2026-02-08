@@ -1,4 +1,4 @@
-import { createServer, type Server } from "http";
+import type { Server } from "http";
 import { initializeAgentWallet, createFlaunchClient } from "./wallet/provider.js";
 import { checkWalletReadiness, estimateRequiredFunding } from "./wallet/funding-guide.js";
 import {
@@ -20,6 +20,8 @@ import {
   buyOwnToken,
   monitorPositions,
   getPortfolioStatus,
+  recordPerformance,
+  type ScoreConceptOptions,
 } from "./contexts/index.js";
 import { makeDecision, getMarketConditions } from "./decision/engine.js";
 import { checkSafetyConditions } from "./safety.js";
@@ -32,7 +34,7 @@ import {
   alertIdentityRegistered,
   alertShutdown,
 } from "./alerts.js";
-import { SAFETY_LIMITS, INTERVALS } from "./constants.js";
+import { SAFETY_LIMITS, INTERVALS, SCORING_WEIGHTS } from "./constants.js";
 import { createClientEvmSigner, createX402Fetch, type X402Client } from "./x402/index.js";
 import {
   getExistingIdentity,
@@ -41,6 +43,16 @@ import {
   generateAgentRegistrationJSON,
   type IdentityConfig,
 } from "./identity/index.js";
+import { createSocialSignalProvider, type SocialSignalProvider } from "./social/index.js";
+import {
+  createPerformanceState,
+  recordPositionPerformance,
+  shouldTune,
+  calculateWeightAdjustments,
+  type PerformanceState,
+  type ScoringWeights,
+} from "./performance/index.js";
+import { createApiServer, type ApiContext } from "./api/index.js";
 import type { AgentState } from "./types.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -51,6 +63,8 @@ const ENABLE_LLM_SCORING = process.env.ENABLE_LLM_SCORING === "true";
 const LLM_ANALYSIS_LIMIT = parseInt(process.env.LLM_ANALYSIS_LIMIT || "5", 10);
 const CACHE_CLEAR_INTERVAL = 12; // Clear LLM cache every 12 cycles (~12 min)
 const ENABLE_IDENTITY_REGISTRATION = process.env.ENABLE_IDENTITY_REGISTRATION === "true";
+const ENABLE_AUTO_TUNER = process.env.ENABLE_AUTO_TUNER === "true";
+const ENABLE_API_GATING = process.env.ENABLE_API_GATING === "true";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AGENT STATE CONTAINER
@@ -109,7 +123,7 @@ function log(message: string, level: "info" | "warn" | "error" = "info"): void {
 // ═══════════════════════════════════════════════════════════════════════════
 
 let isShuttingDown = false;
-let healthServer: Server | null = null;
+let apiServer: Server | null = null;
 
 async function gracefulShutdown(signal: string): Promise<void> {
   if (isShuttingDown) return;
@@ -123,8 +137,8 @@ async function gracefulShutdown(signal: string): Promise<void> {
     // Best effort alert
   }
 
-  if (healthServer) {
-    healthServer.close();
+  if (apiServer) {
+    apiServer.close();
   }
 
   log("Shutdown complete.");
@@ -174,6 +188,27 @@ async function main() {
   } catch (error) {
     log(`x402 init skipped: ${error}`, "warn");
   }
+
+  // ─── Social Signal Provider ──────────────────────────────────────────
+  let socialProvider: SocialSignalProvider | null = null;
+  const neynarKey = process.env.NEYNAR_API_KEY;
+  const twitterToken = process.env.TWITTER_BEARER_TOKEN;
+
+  if (neynarKey || twitterToken) {
+    socialProvider = createSocialSignalProvider({
+      farcaster: neynarKey ? { apiKey: neynarKey } : undefined,
+      twitter: twitterToken ? { bearerToken: twitterToken } : undefined,
+    });
+    log(`Social signals initialized (Farcaster: ${neynarKey ? "YES" : "NO"}, Twitter: ${twitterToken ? "YES" : "NO"})`);
+  } else {
+    log("Social signals: no API keys configured, using neutral scores");
+  }
+
+  // ─── Performance Tracking ────────────────────────────────────────────
+  const performanceState = createPerformanceState();
+  let currentWeights: ScoringWeights = { ...SCORING_WEIGHTS };
+  let lastTuneTimestamp = 0;
+  log(`Auto-tuner: ${ENABLE_AUTO_TUNER ? "ENABLED" : "DISABLED"}`);
 
   // ─── ERC-8004 Identity Registration ──────────────────────────────────
   if (ENABLE_IDENTITY_REGISTRATION) {
@@ -240,6 +275,9 @@ async function main() {
     "LLM Mode": ENABLE_LLM_SCORING ? "Enabled" : "Disabled",
     "x402": x402Client ? "Enabled" : "Disabled",
     "Identity": ENABLE_IDENTITY_REGISTRATION ? "Enabled" : "Disabled",
+    "Social": socialProvider ? "Enabled" : "Disabled",
+    "Auto-Tuner": ENABLE_AUTO_TUNER ? "Enabled" : "Disabled",
+    "API Gating": ENABLE_API_GATING ? "Enabled" : "Disabled",
   });
 
   // Main autonomous loop
@@ -281,6 +319,12 @@ async function main() {
       log("📈 Fetching market conditions...");
       const marketConditions = await getMarketConditions();
 
+      // Build scoring options with social provider and current weights
+      const scoreOptions: ScoreConceptOptions = {
+        socialSignalProvider: socialProvider || undefined,
+        weights: ENABLE_AUTO_TUNER ? currentWeights : undefined,
+      };
+
       // 5. Score concepts (with optional LLM enhancement)
       if (concepts.length > 0) {
         // Get market context for LLM-enhanced scoring
@@ -300,14 +344,16 @@ async function main() {
             concepts,
             contexts.monitor.recentTokens,
             marketContext,
-            LLM_ANALYSIS_LIMIT
+            LLM_ANALYSIS_LIMIT,
+            scoreOptions
           );
         } else {
           log("🧠 Scoring concepts...");
           await scoreConcepts(
             contexts.analyzer,
             concepts,
-            contexts.monitor.recentTokens
+            contexts.monitor.recentTokens,
+            scoreOptions
           );
         }
 
@@ -326,9 +372,9 @@ async function main() {
         }
       }
 
-      // 6. Decision: Should we launch?
+      // 6. Decision: Should we launch? (with performance data)
       log("🎯 Making launch decision...");
-      const decision = await makeDecision(agentState, marketConditions);
+      const decision = await makeDecision(agentState, marketConditions, performanceState);
       log(
         `Decision: ${decision.shouldLaunch ? "LAUNCH" : "WAIT"} (confidence: ${decision.confidence.toFixed(2)})`
       );
@@ -417,6 +463,7 @@ async function main() {
         );
         log(`Checked ${positionResults.checked} positions`);
 
+        // Record performance for exited positions
         for (const exit of positionResults.exits) {
           log(`💰 ${exit.action}: $${exit.token} at ${exit.multiple}x → ${exit.ethReceived} ETH`);
           await alertPositionExit(
@@ -425,10 +472,47 @@ async function main() {
             exit.multiple,
             exit.ethReceived
           );
+
+          // Find the position that exited to record performance
+          const exitedPosition = contexts.positionManager.closedPositions.find(
+            (p) => p.tokenSymbol === exit.token
+          );
+          if (exitedPosition) {
+            const concept = exitedPosition.concept || exit.token;
+            // Find factor scores for this concept
+            const conceptScore = contexts.analyzer.scoredConcepts.find(
+              (c) => c.concept.toLowerCase() === concept.toLowerCase()
+            );
+            recordPositionPerformance(
+              performanceState,
+              contexts.analyzer,
+              concept,
+              exitedPosition,
+              exit,
+              conceptScore?.factors
+            );
+            log(`📊 Recorded performance for "${concept}" (${exit.multiple}x)`);
+          }
         }
       }
 
-      // 9. Portfolio status
+      // 9. Auto-tune weights periodically
+      if (ENABLE_AUTO_TUNER && shouldTune(performanceState, lastTuneTimestamp)) {
+        log("🔧 Running auto-tuner...");
+        const tuneResult = calculateWeightAdjustments(
+          currentWeights,
+          performanceState.factorCorrelations
+        );
+        if (tuneResult.tuned) {
+          currentWeights = tuneResult.newWeights;
+          lastTuneTimestamp = Date.now();
+          log(`Weights updated: vol=${currentWeights.volume.toFixed(3)} rec=${currentWeights.recency.toFixed(3)} soc=${currentWeights.social.toFixed(3)} nov=${currentWeights.novelty.toFixed(3)}`);
+        } else {
+          log(`Auto-tuner skipped: ${tuneResult.reason}`);
+        }
+      }
+
+      // 10. Portfolio status
       const portfolio = await getPortfolioStatus(contexts.positionManager);
       log(
         `Portfolio: ${portfolio.activePositions} active, P&L: ${portfolio.totalPnL} ETH`
@@ -450,37 +534,33 @@ async function main() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HEALTH CHECK SERVER (Enhanced)
+// API SERVER (replaces health-only server)
 // ═══════════════════════════════════════════════════════════════════════════
 
-let cycleCount = 0;
-const startTime = Date.now();
+// These are initialized before main() starts, so the API server
+// can serve health checks while the agent initializes.
+const contexts = createAgentContexts();
+const performanceState = createPerformanceState();
 
-healthServer = createServer((req, res) => {
-  if (req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        status: "ok",
-        timestamp: Date.now(),
-        uptime: Date.now() - startTime,
-        uptimeFormatted: `${Math.floor((Date.now() - startTime) / 1000)}s`,
-        version: "0.1.0",
-        features: {
-          llmScoring: ENABLE_LLM_SCORING,
-          identityRegistration: ENABLE_IDENTITY_REGISTRATION,
-        },
-      })
-    );
-  } else {
-    res.writeHead(404);
-    res.end("Not found");
-  }
-});
+const apiContext: ApiContext = {
+  getAnalyzerState: () => contexts.analyzer,
+  getPositionManagerState: () => contexts.positionManager,
+  getPerformanceState: () => performanceState,
+};
+
+apiServer = createApiServer(
+  {
+    version: "0.2.0",
+    gating: {
+      enableGating: ENABLE_API_GATING,
+    },
+  },
+  apiContext
+);
 
 const PORT = process.env.PORT || 3000;
-healthServer.listen(PORT, () => {
-  console.log(`Health check server listening on port ${PORT}`);
+apiServer.listen(PORT, () => {
+  console.log(`API server listening on port ${PORT}`);
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
