@@ -83,9 +83,21 @@ autonomous-token-launcher/
 │   │   │   │   ├── routes.ts            # /api/trends, scores, portfolio, performance
 │   │   │   │   ├── server.ts            # HTTP server with router + health check
 │   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── persistence/
+│   │   │   │   ├── database.ts          # SQLite schema + CRUD operations
+│   │   │   │   ├── state-sync.ts        # In-memory ↔ DB bridge (hydration + persist)
+│   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── utils/
+│   │   │   │   ├── retry.ts             # Exponential backoff retry utility
+│   │   │   │   ├── gas-tracker.ts       # Real gas spend tracking per UTC day
+│   │   │   │   └── index.ts             # Barrel export
+│   │   │   ├── flaunch/
+│   │   │   │   ├── client.ts            # @flaunch/sdk wrapper adapter
+│   │   │   │   ├── receipt-parser.ts    # ABI-based ERC-20/WETH receipt decoding
+│   │   │   │   └── index.ts             # Barrel export
 │   │   │   ├── safety.ts                # Limits & circuit breakers
 │   │   │   ├── alerts.ts                # Discord/Slack webhooks
-│   │   │   ├── runner.ts                # Main autonomous loop + API server
+│   │   │   ├── runner.ts                # Main autonomous loop + API server + DB persistence
 │   │   │   └── index.ts                 # Agent initialization
 │   │   ├── Dockerfile
 │   │   ├── railway.toml
@@ -181,6 +193,7 @@ NEYNAR_API_KEY=            # Farcaster social signals (Neynar)
 TWITTER_BEARER_TOKEN=      # Twitter/X API v2 bearer token
 ENABLE_AUTO_TUNER=         # true/false - enable weight auto-tuning
 ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
+SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 ```
 
 ## Budget: $200 Experiment
@@ -202,7 +215,9 @@ ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
   "@fal-ai/client": "^1.2.3",
   "vitest": "^2.1.9",
   "@x402/fetch": "^2.3.0",
-  "@x402/evm": "^2.3.0"
+  "@x402/evm": "^2.3.0",
+  "better-sqlite3": "^12.6.2",
+  "@flaunch/sdk": "^0.9.16"
 }
 ```
 
@@ -245,9 +260,17 @@ ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
 - [x] Full runner integration — social provider, performance recording, auto-tuner, API server replaces health-only server
 - [x] Test suite: 269 tests passing
 
-### Phase 5: Production Hardening (NOT STARTED)
+### Phase 5: Production Hardening (COMPLETE)
+- [x] SQLite state persistence — positions, launched tokens, performance, weights, gas records survive restarts
+- [x] Flaunch SDK integration — replaced stubs with real `@flaunch/sdk@0.9.16` wrapper (buyCoin/sellCoin/withdrawCreatorRevenue/flaunchIPFS)
+- [x] ABI-based receipt parsing — ERC-20 Transfer + WETH Withdrawal decoding via viem
+- [x] Runner hardening — real gas tracking (GasTracker), consecutive failure counter, USDC balance reads, exponential backoff retry on RPC calls, UTC daily reset
+- [x] DB hydration at startup — loads all persisted state before main loop begins
+- [x] Persistence after mutations — positions, launches, exits, performance, weight tunes, gas records all saved
+- [x] Test suite: 337 tests passing
+
+### Future Work
 - [ ] Real end-to-end testing with funded CDP wallet on Base
-- [ ] Flaunch SDK integration (replace stubs with real SDK calls)
 - [ ] Dashboard UI (Next.js monitoring interface)
 - [ ] Advanced social signals (Farcaster frames, Twitter spaces)
 - [ ] Multi-chain support
@@ -256,10 +279,10 @@ ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
 
 When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
-2. Run `pnpm test` to verify everything still works (269 tests)
+2. Run `pnpm test` to verify everything still works (337 tests)
 3. Run `pnpm typecheck` to verify no type errors
 4. Check `.env.example` for required environment variables
-5. Phase 5 is next: Production hardening, real SDK integration, dashboard
+5. All 5 phases complete — next steps are Future Work items (e2e testing, dashboard, multi-chain)
 
 ## Reference Docs
 

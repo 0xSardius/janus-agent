@@ -16,22 +16,25 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^1.0.0",
     "@coinbase/agentkit": "^0.2.0",
     "@daydreamsai/core": "^0.1.0",
-    "ai": "^4.0.0",
-    "@ai-sdk/anthropic": "^1.0.0",
     "@fal-ai/client": "^1.2.0",
-    "viem": "^2.21.0",
-    "zod": "^3.23.0",
-    "bullmq": "^5.0.0",
+    "@flaunch/sdk": "^0.9.16",
+    "@x402/evm": "^2.3.0",
     "@x402/fetch": "^2.3.0",
-    "@x402/evm": "^2.3.0"
+    "ai": "^4.0.0",
+    "better-sqlite3": "^12.6.2",
+    "bullmq": "^5.0.0",
+    "viem": "^2.21.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^20.11.0",
+    "@vitest/coverage-v8": "^2.0.0",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3",
-    "vitest": "^2.0.0",
-    "@vitest/coverage-v8": "^2.0.0"
+    "vitest": "^2.0.0"
   }
 }

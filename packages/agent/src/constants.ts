@@ -127,6 +127,12 @@ export const API_CONFIG = {
   enableGatingDefault: false, // Disabled by default
 } as const;
 
+// ═══════════════════════════════════════════════════════════════════════════
+// TOKEN ADDRESSES
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as `0x${string}`;
+
 export const ERC8004_CONFIG = {
   // Registry addresses
   ethereumRegistry: "0x8004e3e07100dFbE22800a5025b1A8a2037aa65C" as `0x${string}`,

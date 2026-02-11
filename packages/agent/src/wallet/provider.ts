@@ -73,7 +73,7 @@ export async function initializeAgentWallet(): Promise<WalletProviderResult> {
 // Connect CDP wallet to viem clients for Flaunch SDK
 // ═══════════════════════════════════════════════════════════════════════════
 
-export async function createFlaunchClient(
+export async function createViemClients(
   walletProvider: CdpWalletProvider
 ): Promise<FlaunchClientResult> {
   const rpcUrl = process.env.BASE_RPC_URL || "https://mainnet.base.org";
@@ -156,3 +156,6 @@ export async function testWalletConnection(
     };
   }
 }
+
+/** @deprecated Use createViemClients instead */
+export const createFlaunchClient = createViemClients;

@@ -1,5 +1,6 @@
 import type { Server } from "http";
-import { initializeAgentWallet, createFlaunchClient } from "./wallet/provider.js";
+import { erc20Abi } from "viem";
+import { initializeAgentWallet, createViemClients } from "./wallet/provider.js";
 import { checkWalletReadiness, estimateRequiredFunding } from "./wallet/funding-guide.js";
 import {
   createMonitorState,
@@ -34,7 +35,7 @@ import {
   alertIdentityRegistered,
   alertShutdown,
 } from "./alerts.js";
-import { SAFETY_LIMITS, INTERVALS, SCORING_WEIGHTS } from "./constants.js";
+import { SAFETY_LIMITS, INTERVALS, SCORING_WEIGHTS, USDC_ADDRESS } from "./constants.js";
 import { createClientEvmSigner, createX402Fetch, type X402Client } from "./x402/index.js";
 import {
   getExistingIdentity,
@@ -53,6 +54,23 @@ import {
   type ScoringWeights,
 } from "./performance/index.js";
 import { createApiServer, type ApiContext } from "./api/index.js";
+import { GasTracker } from "./utils/gas-tracker.js";
+import { withRetry } from "./utils/retry.js";
+import {
+  initDatabase,
+  closeDatabase,
+} from "./persistence/database.js";
+import {
+  hydrateFromDatabase,
+  persistPosition,
+  persistLaunchResult,
+  persistPerformanceResult,
+  persistCategoryPerformance,
+  persistFactorCorrelations,
+  persistWeights,
+  persistMeta,
+  persistGasRecord,
+} from "./persistence/state-sync.js";
 import type { AgentState } from "./types.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -65,6 +83,7 @@ const CACHE_CLEAR_INTERVAL = 12; // Clear LLM cache every 12 cycles (~12 min)
 const ENABLE_IDENTITY_REGISTRATION = process.env.ENABLE_IDENTITY_REGISTRATION === "true";
 const ENABLE_AUTO_TUNER = process.env.ENABLE_AUTO_TUNER === "true";
 const ENABLE_API_GATING = process.env.ENABLE_API_GATING === "true";
+const SQLITE_DB_PATH = process.env.SQLITE_DB_PATH || "./janus.db";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // AGENT STATE CONTAINER
@@ -90,16 +109,19 @@ function createAgentContexts(): AgentContexts {
 
 function getAgentState(
   contexts: AgentContexts,
-  ethBalance: bigint
+  ethBalance: bigint,
+  usdcBalance: bigint,
+  consecutiveFailures: number,
+  gasTracker: GasTracker
 ): AgentState {
   return {
     ethBalance,
-    usdcBalance: BigInt(0), // TODO: Track USDC balance
+    usdcBalance,
     launchedTokens: contexts.launcher.launchedTokens,
     scoredConcepts: contexts.analyzer.scoredConcepts,
     lastLaunchTimestamp: contexts.launcher.lastLaunchTimestamp,
-    consecutiveFailures: 0, // TODO: Track failures
-    dailyGasSpent: BigInt(0), // TODO: Track gas
+    consecutiveFailures,
+    dailyGasSpent: gasTracker.getTodayGasSpent(),
     todayLaunchCount: contexts.launcher.dailyLaunchCount,
   };
 }
@@ -116,6 +138,25 @@ function log(message: string, level: "info" | "warn" | "error" = "info"): void {
   const timestamp = new Date().toISOString();
   const prefix = { info: "ℹ️", warn: "⚠️", error: "❌" }[level];
   console.log(`[${timestamp}] ${prefix} ${message}`);
+}
+
+function getUTCDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function readUSDCBalance(publicClient: any, walletAddress: `0x${string}`): Promise<bigint> {
+  try {
+    const balance = await publicClient.readContract({
+      address: USDC_ADDRESS,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [walletAddress],
+    });
+    return balance as bigint;
+  } catch {
+    return BigInt(0);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -156,11 +197,16 @@ async function main() {
   log("🚀 Starting Autonomous Token Launcher Agent...");
   const startTime = Date.now();
 
+  // ─── Initialize SQLite Database ────────────────────────────────────
+  log(`Initializing database at ${SQLITE_DB_PATH}...`);
+  const db = initDatabase(SQLITE_DB_PATH);
+  log("Database initialized");
+
   // Initialize CDP wallet
   log("Initializing CDP wallet...");
   const { walletProvider } = await initializeAgentWallet();
   const { publicClient, walletClient, walletAddress } =
-    await createFlaunchClient(walletProvider);
+    await createViemClients(walletProvider);
   log(`📍 Agent wallet: ${walletAddress}`);
 
   // ─── Wallet Readiness Check ──────────────────────────────────────────
@@ -209,6 +255,11 @@ async function main() {
   let currentWeights: ScoringWeights = { ...SCORING_WEIGHTS };
   let lastTuneTimestamp = 0;
   log(`Auto-tuner: ${ENABLE_AUTO_TUNER ? "ENABLED" : "DISABLED"}`);
+
+  // ─── Gas Tracker ─────────────────────────────────────────────────────
+  const gasTracker = new GasTracker();
+  let consecutiveFailures = 0;
+  let lastDailyResetDate = "";
 
   // ─── ERC-8004 Identity Registration ──────────────────────────────────
   if (ENABLE_IDENTITY_REGISTRATION) {
@@ -259,13 +310,37 @@ async function main() {
   // Initialize contexts
   const contexts = createAgentContexts();
   log("Contexts initialized");
+
+  // ─── Hydrate State from Database ──────────────────────────────────────
+  log("Hydrating state from database...");
+  const hydrationResult = hydrateFromDatabase(db, {
+    launcher: contexts.launcher,
+    positionManager: contexts.positionManager,
+    performanceState,
+  });
+  if (hydrationResult.weights) {
+    currentWeights = hydrationResult.weights;
+  }
+  lastTuneTimestamp = hydrationResult.lastTuneTimestamp;
+  consecutiveFailures = hydrationResult.consecutiveFailures;
+  gasTracker.loadRecords(hydrationResult.gasRecords);
+  log(
+    `Hydrated: ${hydrationResult.positions} active positions, ` +
+    `${hydrationResult.launchedTokens} launched tokens, ` +
+    `${hydrationResult.performanceResults} performance results, ` +
+    `${hydrationResult.consecutiveFailures} consecutive failures`
+  );
+
   log(`LLM-enhanced scoring: ${ENABLE_LLM_SCORING ? "ENABLED" : "DISABLED"}`);
   if (ENABLE_LLM_SCORING) {
     log(`LLM analysis limit: ${LLM_ANALYSIS_LIMIT} concepts per cycle`);
   }
 
   // Check initial balance
-  const initialBalance = await publicClient.getBalance({ address: walletAddress });
+  const initialBalance = await withRetry<bigint>(
+    () => publicClient.getBalance({ address: walletAddress }),
+    { maxRetries: 3, baseDelayMs: 2000 }
+  );
   log(`💰 Initial balance: ${Number(initialBalance) / 1e18} ETH`);
 
   // Send startup alert
@@ -278,6 +353,8 @@ async function main() {
     "Social": socialProvider ? "Enabled" : "Disabled",
     "Auto-Tuner": ENABLE_AUTO_TUNER ? "Enabled" : "Disabled",
     "API Gating": ENABLE_API_GATING ? "Enabled" : "Disabled",
+    "Persistence": "SQLite",
+    "Hydrated Positions": String(hydrationResult.positions),
   });
 
   // Main autonomous loop
@@ -287,10 +364,23 @@ async function main() {
     const cycleStart = Date.now();
     log(`\n═══ Cycle ${cycleCount} ═══`);
 
+    // ─── Daily Reset ─────────────────────────────────────────────────
+    const today = getUTCDateString();
+    if (today !== lastDailyResetDate) {
+      gasTracker.resetDaily();
+      contexts.launcher.dailyLaunchCount = 0;
+      lastDailyResetDate = today;
+      log("Daily counters reset (UTC midnight)");
+    }
+
     try {
-      // Get current balance
-      const ethBalance = await publicClient.getBalance({ address: walletAddress });
-      const agentState = getAgentState(contexts, ethBalance);
+      // Get current balances with retry
+      const ethBalance = await withRetry<bigint>(
+        () => publicClient.getBalance({ address: walletAddress }),
+        { maxRetries: 3, baseDelayMs: 2000 }
+      );
+      const usdcBalance = await readUSDCBalance(publicClient, walletAddress);
+      const agentState = getAgentState(contexts, ethBalance, usdcBalance, consecutiveFailures, gasTracker);
 
       // 1. Safety check
       log("Running safety checks...");
@@ -305,9 +395,12 @@ async function main() {
         continue;
       }
 
-      // 2. Monitor: Poll for new tokens
+      // 2. Monitor: Poll for new tokens (with retry)
       log("👀 Polling Flaunch for new tokens...");
-      const pollResult = await pollNewTokens(contexts.monitor);
+      const pollResult = await withRetry(
+        () => pollNewTokens(contexts.monitor),
+        { maxRetries: 2, baseDelayMs: 3000 }
+      );
       log(`Found ${pollResult.tokensFound} tokens (${pollResult.newTokens} new)`);
 
       // 3. Extract trending concepts
@@ -315,9 +408,12 @@ async function main() {
       const concepts = await extractTrendingConcepts(contexts.monitor);
       log(`Trending concepts: ${concepts.slice(0, 5).join(", ")}`);
 
-      // 4. Get market conditions (needed for scoring and decision)
+      // 4. Get market conditions (needed for scoring and decision) (with retry)
       log("📈 Fetching market conditions...");
-      const marketConditions = await getMarketConditions();
+      const marketConditions = await withRetry(
+        () => getMarketConditions(),
+        { maxRetries: 2, baseDelayMs: 3000 }
+      );
 
       // Build scoring options with social provider and current weights
       const scoreOptions: ScoreConceptOptions = {
@@ -417,11 +513,33 @@ async function main() {
 
           if (launchResult.success && launchResult.tokenAddress) {
             log(`✅ Token launched! TX: ${launchResult.txHash}`);
+            consecutiveFailures = 0;
+            persistMeta(db, "consecutiveFailures", "0");
             await alertLaunchSuccess(
               metadata.symbol,
               launchResult.txHash!,
               launchResult.tokenAddress
             );
+
+            // Persist launched token
+            const launchedToken = contexts.launcher.launchedTokens[
+              contexts.launcher.launchedTokens.length - 1
+            ];
+            if (launchedToken) {
+              persistLaunchResult(db, launchedToken);
+            }
+
+            // Record gas for launch tx
+            if (launchResult.txHash) {
+              try {
+                const receipt = await publicClient.getTransactionReceipt({ hash: launchResult.txHash });
+                const gasCost = BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice);
+                gasTracker.recordGasUsed(launchResult.txHash, gasCost);
+                persistGasRecord(db, { txHash: launchResult.txHash, gasUsed: gasCost, timestamp: Date.now() });
+              } catch {
+                // Best effort gas tracking
+              }
+            }
 
             // Buy own token
             log(`💎 Buying position in ${metadata.symbol}...`);
@@ -443,11 +561,33 @@ async function main() {
                 String(Number(buyResult.costBasisETH) / 1e18),
                 String(buyResult.tokensReceived)
               );
+
+              // Persist position
+              const newPosition = contexts.positionManager.activePositions[
+                contexts.positionManager.activePositions.length - 1
+              ];
+              if (newPosition) {
+                persistPosition(db, newPosition);
+              }
+
+              // Record gas for buy tx
+              if (buyResult.txHash) {
+                try {
+                  const receipt = await publicClient.getTransactionReceipt({ hash: buyResult.txHash });
+                  const gasCost = BigInt(receipt.gasUsed) * BigInt(receipt.effectiveGasPrice);
+                  gasTracker.recordGasUsed(buyResult.txHash, gasCost);
+                  persistGasRecord(db, { txHash: buyResult.txHash, gasUsed: gasCost, timestamp: Date.now() });
+                } catch {
+                  // Best effort
+                }
+              }
             } else {
               log(`Position skipped: ${buyResult.reason}`, "warn");
             }
           } else {
             log(`Launch failed: ${launchResult.error}`, "error");
+            consecutiveFailures++;
+            persistMeta(db, "consecutiveFailures", String(consecutiveFailures));
             await alertError(launchResult.error || "Unknown error", "Token launch");
           }
         }
@@ -492,6 +632,27 @@ async function main() {
               conceptScore?.factors
             );
             log(`📊 Recorded performance for "${concept}" (${exit.multiple}x)`);
+
+            // Persist performance result
+            const lastResult = performanceState.results[performanceState.results.length - 1];
+            if (lastResult) {
+              persistPerformanceResult(db, lastResult);
+              const catPerf = performanceState.categoryPerformance.get(lastResult.category);
+              if (catPerf) {
+                persistCategoryPerformance(db, lastResult.category, catPerf);
+              }
+              persistFactorCorrelations(db, performanceState.factorCorrelations);
+            }
+
+            // Persist closed position
+            persistPosition(db, exitedPosition);
+          }
+        }
+
+        // Persist updated active positions (tranche changes)
+        for (const pos of contexts.positionManager.activePositions) {
+          if (positionResults.exits.length > 0) {
+            persistPosition(db, pos);
           }
         }
       }
@@ -507,6 +668,10 @@ async function main() {
           currentWeights = tuneResult.newWeights;
           lastTuneTimestamp = Date.now();
           log(`Weights updated: vol=${currentWeights.volume.toFixed(3)} rec=${currentWeights.recency.toFixed(3)} soc=${currentWeights.social.toFixed(3)} nov=${currentWeights.novelty.toFixed(3)}`);
+
+          // Persist tuned weights and timestamp
+          persistWeights(db, currentWeights);
+          persistMeta(db, "lastTuneTimestamp", String(lastTuneTimestamp));
         } else {
           log(`Auto-tuner skipped: ${tuneResult.reason}`);
         }
@@ -518,7 +683,9 @@ async function main() {
         `Portfolio: ${portfolio.activePositions} active, P&L: ${portfolio.totalPnL} ETH`
       );
     } catch (error) {
-      log(`Cycle error: ${error}`, "error");
+      consecutiveFailures++;
+      persistMeta(db, "consecutiveFailures", String(consecutiveFailures));
+      log(`Cycle error (failures: ${consecutiveFailures}): ${error}`, "error");
       await alertError(
         error instanceof Error ? error.message : String(error),
         `Cycle ${cycleCount}`
@@ -531,6 +698,9 @@ async function main() {
     log(`Cycle complete in ${elapsed}ms. Waiting ${waitTime}ms...`);
     await sleep(waitTime);
   }
+
+  // ─── Cleanup on exit ──────────────────────────────────────────────────
+  closeDatabase(db);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -550,7 +720,7 @@ const apiContext: ApiContext = {
 
 apiServer = createApiServer(
   {
-    version: "0.2.0",
+    version: "0.3.0",
     gating: {
       enableGating: ENABLE_API_GATING,
     },

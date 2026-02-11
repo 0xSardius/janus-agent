@@ -2,6 +2,8 @@ import type { PublicClient, WalletClient, Hash } from "viem";
 import { parseEther, formatEther } from "viem";
 import type { Position, PositionExitResult } from "../types.js";
 import { POSITION_STRATEGY, SAFETY_LIMITS } from "../constants.js";
+import { createFlaunchWrapper } from "../flaunch/client.js";
+import { parseSwapReceiptForTokens, parseSwapReceiptForETH as parseReceiptForETH } from "../flaunch/receipt-parser.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // POSITION MANAGER STATE
@@ -21,27 +23,6 @@ export function createPositionManagerState(): PositionManagerState {
     totalInvested: BigInt(0),
     totalReturned: BigInt(0),
   };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FLAUNCH SWAP INTERFACE (stub)
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface FlaunchSwapClient {
-  swap(params: {
-    tokenAddress: `0x${string}`;
-    amountIn: bigint;
-    direction: "buy" | "sell";
-    slippageBps: number;
-  }): Promise<Hash>;
-}
-
-function createFlaunch(_options: {
-  publicClient: PublicClient;
-  walletClient: WalletClient;
-}): FlaunchSwapClient {
-  // TODO: Replace with actual Flaunch SDK
-  throw new Error("Flaunch SDK not yet integrated");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -105,19 +86,18 @@ export async function buyOwnToken(
   }
 
   try {
-    const flaunch = createFlaunch({ publicClient, walletClient });
+    const flaunch = createFlaunchWrapper(publicClient, walletClient);
 
-    // Execute buy via Flaunch swap (ETH → token)
-    const hash = await flaunch.swap({
-      tokenAddress,
+    // Execute buy via Flaunch SDK (ETH → token)
+    const hash = await flaunch.buyCoin({
+      coinAddress: tokenAddress,
       amountIn: buyAmount,
-      direction: "buy",
-      slippageBps: 500, // 5% slippage tolerance for new tokens
+      slippagePercent: 5, // 5% slippage tolerance for new tokens
     });
 
     // Wait for transaction and parse tokens received
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
-    const tokensReceived = parseSwapReceipt(receipt, tokenAddress);
+    const tokensReceived = parseSwapReceiptForTokens(receipt, tokenAddress, walletAddress);
 
     // Calculate entry price
     const entryPrice = tokensReceived > BigInt(0)
@@ -336,17 +316,16 @@ async function executeSell(
   const tokensToSell =
     (position.amountToken * BigInt(percentToSell)) / BigInt(100);
 
-  const flaunch = createFlaunch({ publicClient, walletClient });
+  const flaunch = createFlaunchWrapper(publicClient, walletClient);
 
-  const hash = await flaunch.swap({
-    tokenAddress: position.tokenAddress as `0x${string}`,
+  const hash = await flaunch.sellCoin({
+    coinAddress: position.tokenAddress as `0x${string}`,
     amountIn: tokensToSell,
-    direction: "sell",
-    slippageBps: 500,
+    slippagePercent: 5,
   });
 
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
-  const ethReceived = parseSwapReceiptForETH(receipt);
+  const ethReceived = parseReceiptForETH(receipt);
 
   return { ethReceived, tokensSold: tokensToSell };
 }
@@ -392,39 +371,3 @@ function calculatePriceFromSqrtPriceX96(sqrtPriceX96: string): bigint {
   return (sqrtPrice * sqrtPrice) / (Q96 * Q96);
 }
 
-function parseSwapReceipt(
-  receipt: { logs: readonly { topics: readonly string[]; data: string }[] },
-  _tokenAddress: string
-): bigint {
-  // Parse Transfer event to get tokens received
-  // Transfer(from, to, amount) - topic0 is event signature
-  // This is a stub - real implementation needs proper ABI decoding
-  for (const log of receipt.logs) {
-    if (log.topics.length >= 3) {
-      // Simplified: assume last topic contains amount or data does
-      try {
-        return BigInt(log.data);
-      } catch {
-        continue;
-      }
-    }
-  }
-  return BigInt(0);
-}
-
-function parseSwapReceiptForETH(
-  receipt: { logs: readonly { topics: readonly string[]; data: string }[] }
-): bigint {
-  // Parse WETH transfer or ETH received
-  // This is a stub - real implementation needs proper event parsing
-  for (const log of receipt.logs) {
-    if (log.data && log.data.length > 2) {
-      try {
-        return BigInt(log.data);
-      } catch {
-        continue;
-      }
-    }
-  }
-  return BigInt(0);
-}

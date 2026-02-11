@@ -2,6 +2,7 @@ import type { PublicClient, WalletClient, Hash } from "viem";
 import { parseEther } from "viem";
 import type { LaunchedToken, TokenMetadata } from "../types.js";
 import { SAFETY_LIMITS } from "../constants.js";
+import { createFlaunchWrapper, type FlaunchClient } from "../flaunch/client.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // LAUNCHER STATE
@@ -46,53 +47,6 @@ export interface LaunchResult {
   tokenId?: bigint;
   poolId?: string;
   error?: string;
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// FLAUNCH SDK INTERFACE (stub until real SDK integration)
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface FlaunchClient {
-  flaunchIPFS(params: {
-    name: string;
-    symbol: string;
-    fairLaunchPercent: number;
-    fairLaunchDuration: number;
-    initialMarketCapUSD: number;
-    creator: `0x${string}`;
-    creatorFeeAllocationPercent: number;
-    metadata: {
-      base64Image?: string;
-      description: string;
-    };
-  }): Promise<Hash>;
-
-  getPoolCreatedFromTx(hash: Hash): Promise<{
-    memecoin: `0x${string}`;
-    tokenId: bigint;
-    poolId: string;
-  } | null>;
-
-  claimFees(tokenId: bigint): Promise<Hash>;
-
-  swap(params: {
-    tokenAddress: `0x${string}`;
-    amountIn: bigint;
-    direction: "buy" | "sell";
-    slippageBps: number;
-  }): Promise<Hash>;
-}
-
-// Stub factory - replace with real SDK import
-function createFlaunch(_options: {
-  publicClient: PublicClient;
-  walletClient: WalletClient;
-}): FlaunchClient {
-  // TODO: Replace with actual Flaunch SDK initialization
-  // import { createFlaunch } from "@flaunch/sdk";
-  throw new Error(
-    "Flaunch SDK not yet integrated - replace this stub with real implementation"
-  );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -145,7 +99,7 @@ export async function launchToken(
   }
 
   try {
-    const flaunch = createFlaunch({ publicClient, walletClient });
+    const flaunch = createFlaunchWrapper(publicClient, walletClient);
 
     // Execute launch
     const hash = await flaunch.flaunchIPFS({
@@ -212,8 +166,8 @@ export async function claimRevenue(
   walletClient: WalletClient
 ): Promise<{ success: boolean; txHash?: Hash; error?: string }> {
   try {
-    const flaunch = createFlaunch({ publicClient, walletClient });
-    const hash = await flaunch.claimFees(tokenId);
+    const flaunch = createFlaunchWrapper(publicClient, walletClient);
+    const hash = await flaunch.withdrawCreatorRevenue();
 
     // Remove from pending claims
     state.pendingClaims = state.pendingClaims.filter(

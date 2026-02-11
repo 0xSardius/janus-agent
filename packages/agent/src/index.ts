@@ -32,6 +32,7 @@ export {
 // Wallet
 export {
   initializeAgentWallet,
+  createViemClients,
   createFlaunchClient,
   getWalletStatus,
   getWalletBalance,
@@ -146,3 +147,46 @@ export {
   type ApiContext,
   type X402GatingConfig,
 } from "./api/index.js";
+
+// Persistence (SQLite)
+export {
+  initDatabase,
+  closeDatabase,
+  type PositionRow,
+  type LaunchedTokenRow,
+  type PerformanceResultRow,
+  type CategoryPerformanceRow,
+  type ScoringWeightsRow,
+  type GasRecordRow,
+} from "./persistence/index.js";
+
+export {
+  hydrateFromDatabase,
+  persistPosition,
+  persistLaunchResult,
+  persistPerformanceResult,
+  persistCategoryPerformance,
+  persistFactorCorrelations,
+  persistWeights,
+  persistMeta,
+  persistGasRecord,
+  type HydrationTarget,
+  type HydrationResult,
+} from "./persistence/index.js";
+
+// Utils
+export {
+  withRetry,
+  GasTracker,
+  estimateGasFromReceipt,
+  type RetryOptions,
+  type GasRecord,
+} from "./utils/index.js";
+
+// Flaunch SDK Wrapper
+export {
+  createFlaunchWrapper,
+  parseSwapReceiptForTokens,
+  parseSwapReceiptForETH,
+  type FlaunchClient,
+} from "./flaunch/index.js";

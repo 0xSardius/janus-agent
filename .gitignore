@@ -35,3 +35,8 @@ coverage/
 
 # Emergency stop file
 agent-stop
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal

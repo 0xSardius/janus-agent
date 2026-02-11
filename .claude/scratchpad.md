@@ -1,9 +1,9 @@
 # Janus Agent — Development Scratchpad
 
-## Current Status: Phase 4 Complete
+## Current Status: Phase 5 Complete (All Phases Done)
 
-**Date**: 2026-02-08
-**Tests**: 269 passing (17 test files)
+**Date**: 2026-02-10
+**Tests**: 337 passing (23 test files)
 **Type errors**: 0
 
 ## Phase History
@@ -105,14 +105,46 @@ Implemented 3 features that form a closed loop:
 - `makeDecision()` receives `performanceState` for real success rate
 - API server replaces health-only server, shares contexts via `ApiContext` getters
 
-## What's Next: Phase 5 — Production Hardening
+### Phase 5: Production Hardening — COMPLETE (2026-02-10)
+Implemented 3 features:
+
+**Feature 1: State Persistence (SQLite)**
+- `src/persistence/database.ts` — SQLite via `better-sqlite3`, WAL mode, 8 tables:
+  - `positions`, `launched_tokens`, `performance_results`, `category_performance`, `factor_correlations`, `scoring_weights`, `agent_metadata`, `gas_records`
+  - BigInt stored as TEXT, single-row constraint on scoring_weights
+- `src/persistence/state-sync.ts` — Hydration at startup + persist after every mutation
+  - `hydrateFromDatabase()` loads all state into in-memory objects
+  - `persistPosition()`, `persistLaunchResult()`, `persistPerformanceResult()`, etc.
+- 33 tests (21 database + 12 state-sync)
+
+**Feature 2: Runner Hardening**
+- `src/utils/retry.ts` — `withRetry<T>()` exponential backoff (3 retries, 1s base, 30s max)
+- `src/utils/gas-tracker.ts` — `GasTracker` class tracks gas per UTC day, `estimateGasFromReceipt()`
+- Runner fixes:
+  - `consecutiveFailures` — real counter (increment on error, reset on success)
+  - `dailyGasSpent` — `gasTracker.getTodayGasSpent()` replaces hardcoded `BigInt(0)`
+  - `usdcBalance` — `readUSDCBalance()` via `publicClient.readContract()` with `erc20Abi`
+  - RPC calls wrapped with `withRetry<bigint>()` (getBalance, pollNewTokens, getMarketConditions)
+  - UTC midnight daily reset for gas tracker + launch counters
+- 16 tests (6 retry + 10 gas-tracker)
+
+**Feature 3: Flaunch SDK Integration**
+- `src/flaunch/client.ts` — `createFlaunchWrapper(publicClient, walletClient)` adapts `@flaunch/sdk@0.9.16`:
+  - `buyCoin()` with `swapType: "EXACT_IN"`, slippage as percent (not bps)
+  - `sellCoin()` / `withdrawCreatorRevenue()` / `flaunchIPFS()` / `getPoolCreatedFromTx()`
+- `src/flaunch/receipt-parser.ts` — ABI-based decoding:
+  - `parseSwapReceiptForTokens()` — ERC-20 Transfer events via `decodeEventLog`
+  - `parseSwapReceiptForETH()` — WETH Transfer + Withdrawal events (WETH: `0x4200000000000000000000000000000000000006`)
+- Replaced stubs in `launcher.ts` and `position-manager.ts`
+- `wallet/provider.ts` — renamed `createFlaunchClient` → `createViemClients` (deprecated re-export kept)
+- 19 tests (8 client + 11 receipt-parser)
+
+## What's Next: Future Work
 
 - [ ] Real end-to-end testing with funded CDP wallet on Base
-- [ ] Replace Flaunch SDK stubs with real SDK calls
 - [ ] Dashboard UI (Next.js monitoring interface)
 - [ ] Advanced social signals (Farcaster frames, Twitter spaces)
 - [ ] Multi-chain support
-- [ ] Persistent state (currently all in-memory — lost on restart)
 
 ## Architecture Notes
 
@@ -130,7 +162,14 @@ Implemented 3 features that form a closed loop:
 - `@x402/fetch@^2.3.0`
 - `@x402/evm@^2.3.0`
 
+## Dependencies Added in Phase 5
+- `better-sqlite3@^12.6.2` + `@types/better-sqlite3@^7.6.13`
+- `@flaunch/sdk@^0.9.16`
+
 ## New Constants Added in Phase 4
 - `SOCIAL_CONFIG` — cacheTTL, weights, defaultScore, API base URLs
 - `AUTO_TUNER_CONFIG` — minSampleSize(10), adjustmentRate(0.05), weight bounds [0.1, 0.5], 6h interval
 - `API_CONFIG` — $0.01/request, gating disabled by default
+
+## New Constants Added in Phase 5
+- `USDC_ADDRESS` — Base USDC (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`)
