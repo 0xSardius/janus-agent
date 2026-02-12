@@ -139,9 +139,63 @@ Implemented 3 features:
 - `wallet/provider.ts` — renamed `createFlaunchClient` → `createViemClients` (deprecated re-export kept)
 - 19 tests (8 client + 11 receipt-parser)
 
-## What's Next: Future Work
+## ▶ RESUME HERE — Mainnet Deployment
 
-- [ ] Real end-to-end testing with funded CDP wallet on Base
+**All 5 phases of code are complete. The agent has never run against a real chain.**
+
+### Decision Made
+- Skipping Base Sepolia testnet — going straight to Base mainnet with $200 experiment
+- Flaunch DOES support Base Sepolia (SDK has all contract addresses), but user chose mainnet
+- Earnings (trading gains + creator fees) accumulate in the CDP wallet, withdrawable anytime
+
+### Before You Can Run the Agent — Checklist
+
+1. **[ ] Get CDP API keys** — https://portal.cdp.coinbase.com
+   - Create project → generate API key → get `CDP_API_KEY_NAME` + `CDP_API_KEY_PRIVATE`
+   - The wallet is created automatically on first run
+
+2. **[ ] Fund the CDP wallet** — ~0.07 ETH on Base (~$200)
+   - Run the agent once to see the wallet address in logs
+   - Send ETH to that address on Base network
+   - Budget: $50 gas, $80 positions, $50 buffer, $20 emergency
+
+3. **[ ] Get Anthropic API key** — https://console.anthropic.com
+   - `ANTHROPIC_API_KEY=sk-ant-...`
+
+4. **[ ] Get Fal.ai key** — https://fal.ai/dashboard/keys
+   - `FAL_KEY=...` (for image generation)
+
+5. **[ ] Get Base RPC URL** — Alchemy or QuickNode recommended
+   - `BASE_RPC_URL=https://base-mainnet.g.alchemy.com/v2/YOUR_KEY`
+   - Free public fallback: `https://mainnet.base.org`
+
+6. **[ ] Get Flaunch subgraph URL** — Goldsky endpoint
+   - `FLAUNCH_SUBGRAPH_URL=https://api.goldsky.com/api/public/project_.../subgraphs/flaunch-base/1.0.0/gn`
+   - Check https://docs.flaunch.gg for current endpoint
+
+7. **[ ] (Optional) Social signal API keys**
+   - `NEYNAR_API_KEY` — Farcaster signals (https://neynar.com)
+   - `TWITTER_BEARER_TOKEN` — Twitter/X signals
+   - Without these, social score defaults to 0.5 (neutral) — agent still works
+
+8. **[ ] (Optional) Alert webhooks**
+   - `DISCORD_WEBHOOK_URL` and/or `SLACK_WEBHOOK_URL`
+
+### Code Changes Needed Before Mainnet
+- **None for basic run** — code is already configured for `base-mainnet`
+- **Nice to have**: Make `NETWORK` env var configurable (currently hardcoded to `base-mainnet` in `wallet/provider.ts`)
+- **Nice to have**: USDC address should be network-aware if ever switching to testnet
+
+### First Run Plan
+1. `cp .env.example .env` → fill in API keys
+2. `pnpm install && pnpm build`
+3. Run locally first: `pnpm start` (or `node packages/agent/dist/runner.js`)
+4. Watch logs — verify wallet connects, balance reads, subgraph polls
+5. Wait for agent to find a concept scoring > 0.65 and auto-launch
+6. Monitor positions via Discord/Slack alerts or `/api/portfolio` endpoint
+7. Once stable, deploy to Railway
+
+### Future Work
 - [ ] Dashboard UI (Next.js monitoring interface)
 - [ ] Advanced social signals (Farcaster frames, Twitter spaces)
 - [ ] Multi-chain support

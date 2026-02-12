@@ -281,8 +281,10 @@ When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
 2. Run `pnpm test` to verify everything still works (337 tests)
 3. Run `pnpm typecheck` to verify no type errors
-4. Check `.env.example` for required environment variables
-5. All 5 phases complete — next steps are Future Work items (e2e testing, dashboard, multi-chain)
+4. **Read `.claude/scratchpad.md` "RESUME HERE" section** for full deployment checklist
+5. All 5 code phases are complete — next step is mainnet deployment with $200 budget
+6. Need API keys: CDP (wallet), Anthropic (LLM), Fal.ai (images), Alchemy (RPC), Flaunch subgraph URL
+7. Optional: Neynar (Farcaster), Twitter bearer token, Discord/Slack webhooks
 
 ## Reference Docs
 
