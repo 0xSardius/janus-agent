@@ -269,6 +269,13 @@ SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 - [x] Persistence after mutations — positions, launches, exits, performance, weight tunes, gas records all saved
 - [x] Test suite: 337 tests passing
 
+### Pre-Deployment Testing (COMPLETE)
+- [x] Launcher context tests — cooldown, daily limits, balance checks, SDK success/failure, fee claims (25 tests)
+- [x] Wallet provider tests — env var validation, CDP init, viem client fallback, connection testing (18 tests)
+- [x] Creator context tests — LLM generation, image failure resilience, fallback patterns, pending/history management (35 tests)
+- [x] Runner integration tests — full cycle orchestration, error recovery, safety checks, daily reset, decision engine (22 tests)
+- [x] Test suite: 437 tests passing
+
 ### Future Work
 - [ ] Real end-to-end testing with funded CDP wallet on Base
 - [ ] Dashboard UI (Next.js monitoring interface)
@@ -279,7 +286,7 @@ SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 
 When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
-2. Run `pnpm test` to verify everything still works (337 tests)
+2. Run `pnpm test` to verify everything still works (437 tests)
 3. Run `pnpm typecheck` to verify no type errors
 4. **Read `.claude/scratchpad.md` "RESUME HERE" section** for full deployment checklist
 5. All 5 code phases are complete — next step is mainnet deployment with $200 budget

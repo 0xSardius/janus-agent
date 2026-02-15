@@ -1,9 +1,9 @@
 # Janus Agent — Development Scratchpad
 
-## Current Status: Phase 5 Complete (All Phases Done)
+## Current Status: Pre-Deployment Testing Complete
 
-**Date**: 2026-02-10
-**Tests**: 337 passing (23 test files)
+**Date**: 2026-02-15
+**Tests**: 437 passing (27 test files)
 **Type errors**: 0
 
 ## Phase History
@@ -139,9 +139,55 @@ Implemented 3 features:
 - `wallet/provider.ts` — renamed `createFlaunchClient` → `createViemClients` (deprecated re-export kept)
 - 19 tests (8 client + 11 receipt-parser)
 
+### Pre-Deployment Testing — COMPLETE (2026-02-15)
+Added 100 tests across 4 new test files covering previously untested critical paths:
+
+**`contexts/launcher.test.ts` (25 tests)**
+- Cooldown enforcement (block during 2h window, allow after)
+- Daily launch limit (5/day, yesterday's don't count)
+- Balance check (reject below 0.1 ETH minimum)
+- Flaunch SDK success path (state updates, params forwarding, symbol truncation)
+- Error paths: SDK revert, pool data parse failure, non-Error throws
+- Fee claims: success, failure, claimAll with mixed results
+- Helpers: getLaunchedTokens returns copy, resetDailyCounters
+
+**`wallet/provider.test.ts` (18 tests)**
+- Missing env vars (CDP_API_KEY_NAME, CDP_API_KEY_PRIVATE, both)
+- CDP init with correct params, AgentKit initialization
+- CDP configuration error propagation
+- `createViemClients`: getWalletClient, toViemWalletClient fallback, neither-exists error
+- publicClient creation, BASE_RPC_URL env override
+- getWalletStatus, getWalletBalance
+- testWalletConnection: success, provider failure, RPC failure, balance failure, non-Error throws
+
+**`contexts/creator.test.ts` (35 tests)**
+- LLM concept generation: success, correct params, imagePrompt usage
+- Image failure resilience: Fal.ai error, base64 conversion error (both continue without image)
+- Skip image generation, custom style, symbol truncation to 6 chars uppercase
+- State updates: generation history, pending tokens, image cache
+- LLM error propagation (state not updated on failure)
+- Fallback patterns: derivative (prefix), mashup, meta, contrarian (known + unknown opposites)
+- Standalone generateImage: success, caching, cache hit, failure returns null
+- regenerateImage: clears cache before regen
+- Pending token management: get/peek/clear/count
+- Generation history: getRecent with limit, getUsedConcepts deduplication
+
+**`runner.integration.test.ts` (22 tests)**
+- Full cycle orchestration: monitor → analyze → decide → create → launch → buy
+- Consecutive failures: increment on error, reset on success
+- Launch-but-no-buy scenario: token tracked, no position opened
+- Safety check integration: consecutive failures, low balance, gas limit, high gas price, normal pass
+- Daily reset: gas tracker prunes old records, launch count resets
+- Position exit → performance recording with factor scores
+- Portfolio status after buy
+- Decision engine: no concepts, below threshold, insufficient gas, cooldown active
+- Buy safety guards: max positions, portfolio exposure limit
+- readUSDCBalance: success and failure-returns-zero
+- getAgentState assembly from all contexts
+
 ## ▶ RESUME HERE — Mainnet Deployment
 
-**All 5 phases of code are complete. The agent has never run against a real chain.**
+**All 5 phases of code are complete. Pre-deployment tests added. The agent has never run against a real chain.**
 
 ### Decision Made
 - Skipping Base Sepolia testnet — going straight to Base mainnet with $200 experiment
