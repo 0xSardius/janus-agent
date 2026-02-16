@@ -5,11 +5,11 @@ import { parseEther } from "viem";
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const POSITION_STRATEGY = {
-  // Buy amount per launch (conservative with $200 budget)
-  buyAmountETH: parseEther("0.003"), // ~$8-10 per position
+  // Buy amount per launch ($100 budget at ~$2k/ETH)
+  buyAmountETH: parseEther("0.0025"), // ~$5 per position
 
   // Portfolio exposure limits
-  maxActivePositions: 10, // Max concurrent positions
+  maxActivePositions: 5, // Max concurrent positions
   maxPortfolioExposure: 0.25, // Never >25% of wallet in positions
 
   // Staged exit strategy - sell in tranches as price increases
@@ -30,13 +30,13 @@ export const POSITION_STRATEGY = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const SAFETY_LIMITS = {
-  // Budget constraints
-  maxDailyGasSpend: parseEther("0.5"), // ~$1,500 at $3k ETH
-  maxSingleLaunchGas: parseEther("0.02"), // ~$60
-  minEthBalance: parseEther("0.1"), // Reserve buffer
+  // Budget constraints ($100 at ~$2k/ETH ≈ 0.05 ETH)
+  maxDailyGasSpend: parseEther("0.01"), // ~$20/day gas cap
+  maxSingleLaunchGas: parseEther("0.005"), // ~$10 per launch
+  minEthBalance: parseEther("0.005"), // ~$10 emergency floor
 
   // Launch rate limiting
-  maxLaunchesPerDay: 5,
+  maxLaunchesPerDay: 3,
   minTimeBetweenLaunches: 2 * 60 * 60 * 1000, // 2 hours
 
   // Quality thresholds
@@ -44,8 +44,8 @@ export const SAFETY_LIMITS = {
   minConfidenceThreshold: 0.7,
 
   // Position management
-  maxBuyPerToken: parseEther("0.003"), // ~$8-10 per position
-  maxActivePositions: 10, // Max concurrent positions
+  maxBuyPerToken: parseEther("0.0025"), // ~$5 per position
+  maxActivePositions: 5, // Max concurrent positions
   maxPortfolioExposure: 0.25, // Never >25% of wallet in positions
   stopLossMultiple: 0.5, // Sell all if drops 50%
   maxHoldDays: 7, // Auto-exit after 7 days

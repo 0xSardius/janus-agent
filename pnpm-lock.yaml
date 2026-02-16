@@ -20,6 +20,9 @@ importers:
       '@coinbase/agentkit':
         specifier: ^0.2.0
         version: 0.2.3(bufferutil@4.1.0)(ethers@6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@5.0.10)
+      '@coinbase/coinbase-sdk':
+        specifier: ^0.25.0
+        version: 0.25.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@daydreamsai/core':
         specifier: ^0.1.0
         version: 0.1.1(@aws-sdk/credential-providers@3.980.0)(@jest/transform@29.7.0)(@jest/types@29.6.3)(@opentelemetry/api@1.9.0)(axios@1.13.4)(bufferutil@4.1.0)(jest-util@29.7.0)(react@19.2.4)(typescript@5.9.3)(utf-8-validate@5.0.10)(ws@8.18.3(bufferutil@4.1.0)(utf-8-validate@5.0.10))
@@ -865,6 +868,9 @@ packages:
 
   '@coinbase/coinbase-sdk@0.20.0':
     resolution: {integrity: sha512-OoMMktKbjmeEwtwQCK3kIIoX5M+hNelxAGX5Llymvw6bmyrMDaEBZ/Myga9kaLJ+7Hi5Y4jPDy4Cy2MGxxXg6w==}
+
+  '@coinbase/coinbase-sdk@0.25.0':
+    resolution: {integrity: sha512-VzRfeeCJsnML/HvSY+CowfSiPUprEvU5Mww9qJeoUZ7YVi3Yw3ul34UCZD5aXyXNlt/r6TQm7CEnODa5LpHEPg==}
 
   '@daydreamsai/core@0.1.1':
     resolution: {integrity: sha512-V4SHom1GPGU62PlDtALDbugs6WCHaIrxE9/oL+LtwdfF0VRf4gS2T+jC6MqgBQwOys+C6YwA9AkSITsAUDLKSg==}
@@ -6357,6 +6363,29 @@ snapshots:
       - utf-8-validate
 
   '@coinbase/coinbase-sdk@0.20.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
+    dependencies:
+      '@scure/bip32': 1.7.0
+      abitype: 1.2.3(typescript@5.9.3)(zod@3.25.76)
+      axios: 1.13.4
+      axios-mock-adapter: 1.22.0(axios@1.13.4)
+      axios-retry: 4.5.0(axios@1.13.4)
+      bip32: 4.0.0
+      bip39: 3.1.0
+      decimal.js: 10.6.0
+      dotenv: 16.6.1
+      ed2curve: 0.3.0
+      ethers: 6.16.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      jose: 5.10.0
+      secp256k1: 5.0.1
+      viem: 2.45.1(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)
+    transitivePeerDependencies:
+      - bufferutil
+      - debug
+      - typescript
+      - utf-8-validate
+      - zod
+
+  '@coinbase/coinbase-sdk@0.25.0(bufferutil@4.1.0)(typescript@5.9.3)(utf-8-validate@5.0.10)(zod@3.25.76)':
     dependencies:
       '@scure/bip32': 1.7.0
       abitype: 1.2.3(typescript@5.9.3)(zod@3.25.76)

@@ -17,7 +17,7 @@ function createMockPosition(overrides: Partial<Position> = {}): Position {
     tokenSymbol: "TEST",
     entryPriceETH: BigInt(1000000), // 0.000001 ETH per token
     amountToken: parseEther("1000"), // 1000 tokens
-    costBasisETH: parseEther("0.003"),
+    costBasisETH: parseEther("0.0025"),
     boughtAt: Date.now() - 3600000, // 1 hour ago
     tranchesSold: 0,
     totalSoldETH: BigInt(0),
@@ -47,11 +47,11 @@ describe("createPositionManagerState", () => {
 
 describe("POSITION_STRATEGY", () => {
   it("should have correct buy amount", () => {
-    expect(POSITION_STRATEGY.buyAmountETH).toBe(parseEther("0.003"));
+    expect(POSITION_STRATEGY.buyAmountETH).toBe(parseEther("0.0025"));
   });
 
   it("should have max 10 active positions", () => {
-    expect(POSITION_STRATEGY.maxActivePositions).toBe(10);
+    expect(POSITION_STRATEGY.maxActivePositions).toBe(5);
   });
 
   it("should limit portfolio exposure to 25%", () => {
@@ -192,8 +192,8 @@ describe("Portfolio Management", () => {
 
   it("should calculate current exposure correctly", () => {
     state.activePositions = [
-      createMockPosition({ costBasisETH: parseEther("0.003") }),
-      createMockPosition({ costBasisETH: parseEther("0.003") }),
+      createMockPosition({ costBasisETH: parseEther("0.0025") }),
+      createMockPosition({ costBasisETH: parseEther("0.0025") }),
     ];
 
     const currentExposure = state.activePositions.reduce(
@@ -201,7 +201,7 @@ describe("Portfolio Management", () => {
       BigInt(0)
     );
 
-    expect(currentExposure).toBe(parseEther("0.006"));
+    expect(currentExposure).toBe(parseEther("0.005"));
   });
 
   it("should enforce 25% portfolio exposure limit", () => {
@@ -222,12 +222,12 @@ describe("Portfolio Management", () => {
   });
 
   it("should track total invested correctly", () => {
-    state.totalInvested = parseEther("0.009"); // 3 positions
-    const newBuy = parseEther("0.003");
+    state.totalInvested = parseEther("0.0075"); // 3 positions
+    const newBuy = parseEther("0.0025");
 
     state.totalInvested += newBuy;
 
-    expect(state.totalInvested).toBe(parseEther("0.012"));
+    expect(state.totalInvested).toBe(parseEther("0.01"));
   });
 
   it("should track total returned correctly", () => {
@@ -245,7 +245,7 @@ describe("Portfolio Management", () => {
 
     const realizedPnL = state.totalReturned - state.totalInvested;
 
-    expect(realizedPnL).toBe(parseEther("0.003")); // +0.003 ETH profit
+    expect(realizedPnL).toBe(parseEther("0.003")); // +0.003 ETH profit (not tied to buy amount)
   });
 });
 

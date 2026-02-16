@@ -53,7 +53,7 @@ describe("Decision Factors", () => {
 
     it("should fail gas check when balance < minEthBalance", () => {
       const state = createMockAgentState({
-        ethBalance: parseEther("0.05"),
+        ethBalance: parseEther("0.003"),
       });
 
       const hasEnoughGas = state.ethBalance > SAFETY_LIMITS.minEthBalance;
@@ -330,11 +330,11 @@ describe("Success Rate Calculation", () => {
 
 describe("Safety Limits Validation", () => {
   it("should have correct minEthBalance", () => {
-    expect(SAFETY_LIMITS.minEthBalance).toBe(parseEther("0.1"));
+    expect(SAFETY_LIMITS.minEthBalance).toBe(parseEther("0.005"));
   });
 
   it("should have correct maxLaunchesPerDay", () => {
-    expect(SAFETY_LIMITS.maxLaunchesPerDay).toBe(5);
+    expect(SAFETY_LIMITS.maxLaunchesPerDay).toBe(3);
   });
 
   it("should have correct minTimeBetweenLaunches (2 hours)", () => {

@@ -57,29 +57,32 @@ describe("initializeAgentWallet", () => {
   });
 
   it("should throw when CDP_API_KEY_NAME is missing", async () => {
+    delete process.env.WALLET_PRIVATE_KEY;
     delete process.env.CDP_API_KEY_NAME;
     process.env.CDP_API_KEY_PRIVATE = "some-private-key";
 
     await expect(initializeAgentWallet()).rejects.toThrow(
-      /CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE must be set/
+      /WALLET_PRIVATE_KEY or CDP_API_KEY_NAME/
     );
   });
 
   it("should throw when CDP_API_KEY_PRIVATE is missing", async () => {
+    delete process.env.WALLET_PRIVATE_KEY;
     process.env.CDP_API_KEY_NAME = "some-key-name";
     delete process.env.CDP_API_KEY_PRIVATE;
 
     await expect(initializeAgentWallet()).rejects.toThrow(
-      /CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE must be set/
+      /WALLET_PRIVATE_KEY or CDP_API_KEY_NAME/
     );
   });
 
   it("should throw when both CDP env vars are missing", async () => {
+    delete process.env.WALLET_PRIVATE_KEY;
     delete process.env.CDP_API_KEY_NAME;
     delete process.env.CDP_API_KEY_PRIVATE;
 
     await expect(initializeAgentWallet()).rejects.toThrow(
-      /CDP_API_KEY_NAME and CDP_API_KEY_PRIVATE must be set/
+      /WALLET_PRIVATE_KEY or CDP_API_KEY_NAME/
     );
   });
 

@@ -61,10 +61,10 @@ export async function checkWalletReadiness(
   }
 
   // Check if fully funded for budget
-  const fullBudgetETH = 0.065; // ~$200 at $3k ETH
+  const fullBudgetETH = 0.05; // ~$100 at ~$2k ETH
   if (ethFloat < fullBudgetETH) {
     recommendations.push(
-      `For full $200 budget: fund with ~${fullBudgetETH} ETH (~$200 at $3k/ETH)`
+      `For full $100 budget: fund with ~${fullBudgetETH} ETH (~$100 at ~$2k/ETH)`
     );
   }
 
@@ -93,12 +93,12 @@ export async function checkWalletReadiness(
 // ═══════════════════════════════════════════════════════════════════════════
 
 export function estimateRequiredFunding(ethPriceUSD: number): FundingEstimate {
-  // Budget breakdown from CLAUDE.md
-  const gasReserveUSD = 50;
-  const positionCapitalUSD = 80; // 8-10 positions at ~$8-10 each
-  const operatingBufferUSD = 50;
-  const emergencyReserveUSD = 20;
-  const totalUSD = 200;
+  // $100 budget breakdown
+  const gasReserveUSD = 25;
+  const positionCapitalUSD = 40; // 5 positions at ~$5 each + headroom
+  const operatingBufferUSD = 25;
+  const emergencyReserveUSD = 10;
+  const totalUSD = 100;
 
   return {
     gasReserveETH: gasReserveUSD / ethPriceUSD,

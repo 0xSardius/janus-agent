@@ -33,7 +33,7 @@ describe("checkWalletReadiness", () => {
   });
 
   it("should report not ready when balance is below minimum", async () => {
-    const client = createMockPublicClient(parseEther("0.05"));
+    const client = createMockPublicClient(parseEther("0.003"));
 
     const report = await checkWalletReadiness(client as any, MOCK_WALLET);
 
@@ -43,7 +43,7 @@ describe("checkWalletReadiness", () => {
   });
 
   it("should report issue when can't afford one position", async () => {
-    const client = createMockPublicClient(parseEther("0.11")); // Above min but not enough for launch+buy
+    const client = createMockPublicClient(parseEther("0.008")); // Above min (0.005) but not enough for launch+buy (0.0125)
 
     const report = await checkWalletReadiness(client as any, MOCK_WALLET);
 
@@ -105,23 +105,23 @@ describe("estimateRequiredFunding", () => {
   it("should calculate estimates at $3000/ETH", () => {
     const estimate = estimateRequiredFunding(3000);
 
-    expect(estimate.totalRequiredUSD).toBe(200);
-    expect(estimate.totalRequiredETH).toBeCloseTo(0.0667, 3);
+    expect(estimate.totalRequiredUSD).toBe(100);
+    expect(estimate.totalRequiredETH).toBeCloseTo(0.0333, 3);
   });
 
   it("should calculate estimates at $2000/ETH", () => {
     const estimate = estimateRequiredFunding(2000);
 
-    expect(estimate.totalRequiredETH).toBeCloseTo(0.1, 3);
+    expect(estimate.totalRequiredETH).toBeCloseTo(0.05, 3);
   });
 
   it("should break down budget correctly", () => {
     const estimate = estimateRequiredFunding(1000);
 
-    expect(estimate.gasReserveETH).toBe(0.05); // $50 / $1000
-    expect(estimate.positionCapitalETH).toBe(0.08); // $80 / $1000
-    expect(estimate.operatingBufferETH).toBe(0.05); // $50 / $1000
-    expect(estimate.emergencyReserveETH).toBe(0.02); // $20 / $1000
+    expect(estimate.gasReserveETH).toBe(0.025); // $25 / $1000
+    expect(estimate.positionCapitalETH).toBe(0.04); // $40 / $1000
+    expect(estimate.operatingBufferETH).toBe(0.025); // $25 / $1000
+    expect(estimate.emergencyReserveETH).toBe(0.01); // $10 / $1000
   });
 
   it("should sum up to total", () => {

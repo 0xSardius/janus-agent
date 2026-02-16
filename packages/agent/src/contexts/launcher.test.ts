@@ -199,7 +199,7 @@ describe("launchToken", () => {
   });
 
   it("should reject when ETH balance is below minimum", async () => {
-    mockPublicClient = createMockPublicClient("0.05"); // Below 0.1 minimum
+    mockPublicClient = createMockPublicClient("0.003"); // Below 0.005 minimum
 
     const result = await launchToken(state, makeConfig(), mockPublicClient, mockWalletClient, MOCK_WALLET);
 

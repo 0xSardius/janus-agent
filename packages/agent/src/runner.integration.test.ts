@@ -491,11 +491,11 @@ describe("Safety check integration", () => {
   });
 
   it("should block cycle when ETH balance is too low", async () => {
-    const walletProvider = createMockWalletProvider(parseEther("0.05"));
-    const publicClient = createMockPublicClient(parseEther("0.05"));
+    const walletProvider = createMockWalletProvider(parseEther("0.003"));
+    const publicClient = createMockPublicClient(parseEther("0.003"));
 
     const agentState: AgentState = {
-      ethBalance: parseEther("0.05"),
+      ethBalance: parseEther("0.003"), // Below 0.005 minimum
       usdcBalance: BigInt(0),
       launchedTokens: [],
       scoredConcepts: [],
@@ -637,10 +637,10 @@ describe("Position exit performance recording", () => {
       tokenSymbol: "GPEPE",
       entryPriceETH: BigInt(1000),
       amountToken: parseEther("1000"),
-      costBasisETH: parseEther("0.003"),
+      costBasisETH: parseEther("0.0025"),
       boughtAt: Date.now() - 86400000,
       tranchesSold: 100,
-      totalSoldETH: parseEther("0.009"),
+      totalSoldETH: parseEther("0.0075"),
       status: "exited" as const,
       concept: "pepe",
     };
@@ -649,7 +649,7 @@ describe("Position exit performance recording", () => {
       token: "GPEPE",
       action: "TAKE_PROFIT_3x",
       multiple: "3.00",
-      ethReceived: "0.009",
+      ethReceived: "0.0075",
     };
 
     const factorScores = analyzer.scoredConcepts.find(
@@ -686,13 +686,13 @@ describe("Portfolio status after operations", () => {
       tokenSymbol: "TEST",
       entryPriceETH: BigInt(1000),
       amountToken: parseEther("500"),
-      costBasisETH: parseEther("0.003"),
+      costBasisETH: parseEther("0.0025"),
       boughtAt: Date.now(),
       tranchesSold: 0,
       totalSoldETH: BigInt(0),
       status: "active",
     });
-    positionManager.totalInvested = parseEther("0.003");
+    positionManager.totalInvested = parseEther("0.0025");
 
     // Portfolio status reads price from subgraph — set up mock
     mockFetch.mockResolvedValue({
@@ -708,7 +708,7 @@ describe("Portfolio status after operations", () => {
 
     expect(portfolio.activePositions).toBe(1);
     expect(portfolio.closedPositions).toBe(0);
-    expect(portfolio.totalInvestedETH).toBe("0.003");
+    expect(portfolio.totalInvestedETH).toBe("0.0025");
   });
 });
 
@@ -767,7 +767,7 @@ describe("Decision engine integration", () => {
 
   it("should not launch when gas balance is insufficient", async () => {
     const agentState: AgentState = {
-      ethBalance: parseEther("0.05"), // Below 0.1 minimum
+      ethBalance: parseEther("0.003"), // Below 0.005 minimum
       usdcBalance: BigInt(50e6),
       launchedTokens: [],
       scoredConcepts: [{ concept: "pepe", score: 0.9 }],
@@ -832,13 +832,13 @@ describe("Position manager buy safety guards", () => {
     const publicClient = createMockPublicClient();
 
     // Fill up positions
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       positionManager.activePositions.push({
         tokenAddress: `0x${i.toString().padStart(40, "0")}`,
         tokenSymbol: `T${i}`,
         entryPriceETH: BigInt(1000),
         amountToken: parseEther("100"),
-        costBasisETH: parseEther("0.003"),
+        costBasisETH: parseEther("0.0025"),
         boughtAt: Date.now(),
         tranchesSold: 0,
         totalSoldETH: BigInt(0),
@@ -870,7 +870,7 @@ describe("Position manager buy safety guards", () => {
       tokenSymbol: "T1",
       entryPriceETH: BigInt(1000),
       amountToken: parseEther("100"),
-      costBasisETH: parseEther("0.003"), // 0.003 of 0.01 wallet = 30% > 25% limit
+      costBasisETH: parseEther("0.004"), // 0.004 of 0.01 wallet = 40% > 25% limit
       boughtAt: Date.now(),
       tranchesSold: 0,
       totalSoldETH: BigInt(0),

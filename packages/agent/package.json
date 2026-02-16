@@ -18,6 +18,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^1.0.0",
     "@coinbase/agentkit": "^0.2.0",
+    "@coinbase/coinbase-sdk": "^0.25.0",
     "@daydreamsai/core": "^0.1.0",
     "@fal-ai/client": "^1.2.0",
     "@flaunch/sdk": "^0.9.16",

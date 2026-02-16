@@ -228,16 +228,16 @@ describe("isWithinPortfolioLimit", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Safety Limits Constants", () => {
-  it("should have maxDailyGasSpend of 0.5 ETH", () => {
-    expect(SAFETY_LIMITS.maxDailyGasSpend).toBe(parseEther("0.5"));
+  it("should have maxDailyGasSpend of 0.01 ETH", () => {
+    expect(SAFETY_LIMITS.maxDailyGasSpend).toBe(parseEther("0.01"));
   });
 
-  it("should have maxSingleLaunchGas of 0.02 ETH", () => {
-    expect(SAFETY_LIMITS.maxSingleLaunchGas).toBe(parseEther("0.02"));
+  it("should have maxSingleLaunchGas of 0.005 ETH", () => {
+    expect(SAFETY_LIMITS.maxSingleLaunchGas).toBe(parseEther("0.005"));
   });
 
-  it("should have minEthBalance of 0.1 ETH", () => {
-    expect(SAFETY_LIMITS.minEthBalance).toBe(parseEther("0.1"));
+  it("should have minEthBalance of 0.005 ETH", () => {
+    expect(SAFETY_LIMITS.minEthBalance).toBe(parseEther("0.005"));
   });
 
   it("should have maxConsecutiveFailures of 3", () => {
@@ -254,11 +254,11 @@ describe("Safety Limits Constants", () => {
 // ═══════════════════════════════════════════════════════════════════════════
 
 describe("Daily Limit Scenarios", () => {
-  it("should allow up to 5 launches per day", () => {
+  it("should allow up to 3 launches per day", () => {
     const todayStart = getTodayStart();
     const launches: LaunchedToken[] = [];
 
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 2; i++) {
       launches.push(createMockLaunchedToken(todayStart + i * 1000));
     }
 
@@ -268,11 +268,11 @@ describe("Daily Limit Scenarios", () => {
     expect(canLaunchMore).toBe(true);
   });
 
-  it("should block 6th launch in a day", () => {
+  it("should block 4th launch in a day", () => {
     const todayStart = getTodayStart();
     const launches: LaunchedToken[] = [];
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 3; i++) {
       launches.push(createMockLaunchedToken(todayStart + i * 1000));
     }
 
