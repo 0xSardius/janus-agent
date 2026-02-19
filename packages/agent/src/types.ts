@@ -31,6 +31,33 @@ export const PoolDataSchema = z.object({
   swaps: z.array(SwapDataSchema).optional(),
 });
 
+/** Raw shape returned by the Flaunch subgraph (v2 schema) */
+export const SubgraphPoolSchema = z.object({
+  id: z.string(),
+  collectionToken: z.object({
+    id: z.string(),
+    name: z.string(),
+    symbol: z.string(),
+    createdAt: z.string(),
+    volumeETH: z.string(),
+    totalFeesETH: z.string(),
+    baseURI: z.string().optional(),
+    fairLaunch: z.object({
+      ends_at: z.string(),
+    }).nullable().optional(),
+  }),
+  volumeETH: z.string(),
+  volumeUSDC: z.string().optional(),
+  totalFeesETH: z.string().optional(),
+  feeAllocation: z.object({
+    creator: z.number(),
+    community: z.number(),
+  }).nullable().optional(),
+  liveAtTimestamp: z.string(),
+});
+
+export type SubgraphPool = z.infer<typeof SubgraphPoolSchema>;
+
 export type TokenData = z.infer<typeof TokenDataSchema>;
 export type SwapData = z.infer<typeof SwapDataSchema>;
 export type PoolData = z.infer<typeof PoolDataSchema>;

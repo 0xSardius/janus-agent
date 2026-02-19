@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { PoolData, TokenData } from "../types.js";
+import type { PoolData, TokenData, SubgraphPool } from "../types.js";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MONITOR CONTEXT STATE
@@ -26,10 +26,10 @@ export function createMonitorState(): MonitorState {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const RECENT_TOKENS_QUERY = `
-  query RecentTokens($since: Int!, $minVolume: BigDecimal!) {
+  query RecentTokens($since: BigInt!, $minVolume: BigInt!) {
     pools(
       where: {
-        createdAt_gte: $since
+        liveAtTimestamp_gte: $since
         volumeETH_gte: $minVolume
       }
       orderBy: volumeETH
@@ -37,47 +37,81 @@ const RECENT_TOKENS_QUERY = `
       first: 50
     ) {
       id
-      memecoin {
-        address
-        symbol
+      collectionToken {
+        id
         name
-        totalSupply
+        symbol
+        createdAt
+        volumeETH
+        totalFeesETH
+        baseURI
+        fairLaunch {
+          ends_at
+        }
       }
       volumeETH
-      volumeUSD
-      totalRevenue
-      creatorFeeAllocation
-      createdAt
-      fairLaunchEndsAt
-      tokenUri
+      volumeUSDC
+      totalFeesETH
+      feeAllocation {
+        creator
+        community
+      }
+      liveAtTimestamp
     }
   }
 `;
 
 const TRENDING_TOKENS_QUERY = `
-  query TrendingByVelocity($timeWindow: Int!) {
+  query TrendingByVelocity($timeWindow: BigInt!) {
     pools(
-      where: { createdAt_gte: $timeWindow }
+      where: { liveAtTimestamp_gte: $timeWindow }
       orderBy: volumeETH
       orderDirection: desc
       first: 20
     ) {
       id
-      memecoin {
-        symbol
+      collectionToken {
+        id
         name
-        address
+        symbol
+        createdAt
+        volumeETH
+        totalFeesETH
+        fairLaunch {
+          ends_at
+        }
       }
       volumeETH
-      createdAt
-      swaps(first: 100, orderBy: timestamp, orderDirection: desc) {
-        type
-        amountETH
-        timestamp
-      }
+      volumeUSDC
+      liveAtTimestamp
     }
   }
 `;
+
+/**
+ * Map subgraph pool data to our internal PoolData format
+ */
+function mapSubgraphPool(raw: SubgraphPool): PoolData {
+  return {
+    id: raw.id,
+    memecoin: {
+      address: raw.collectionToken.id,
+      symbol: raw.collectionToken.symbol,
+      name: raw.collectionToken.name,
+    },
+    volumeETH: raw.volumeETH,
+    volumeUSD: raw.volumeUSDC,
+    totalRevenue: raw.totalFeesETH,
+    creatorFeeAllocation: raw.feeAllocation
+      ? String(raw.feeAllocation.creator)
+      : undefined,
+    createdAt: Number(raw.liveAtTimestamp),
+    fairLaunchEndsAt: raw.collectionToken.fairLaunch
+      ? Number(raw.collectionToken.fairLaunch.ends_at)
+      : undefined,
+    tokenUri: raw.collectionToken.baseURI,
+  };
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SUBGRAPH CLIENT
@@ -130,12 +164,12 @@ export async function pollNewTokens(
 ): Promise<PollResult> {
   const pollSince = since || state.lastPollTimestamp || Math.floor(Date.now() / 1000) - 3600;
 
-  const data = await querySubgraph<{ pools: PoolData[] }>(RECENT_TOKENS_QUERY, {
-    since: pollSince,
-    minVolume: minVolumeETH,
+  const data = await querySubgraph<{ pools: SubgraphPool[] }>(RECENT_TOKENS_QUERY, {
+    since: String(pollSince),
+    minVolume: String(Math.floor(parseFloat(minVolumeETH) * 1e18)),
   });
 
-  const pools = data.pools || [];
+  const pools = (data.pools || []).map(mapSubgraphPool);
 
   // Track new vs seen tokens
   let newTokens = 0;
@@ -165,11 +199,11 @@ export async function pollTrendingTokens(
 ): Promise<PoolData[]> {
   const timeWindow = Math.floor(Date.now() / 1000) - hoursBack * 3600;
 
-  const data = await querySubgraph<{ pools: PoolData[] }>(TRENDING_TOKENS_QUERY, {
-    timeWindow,
+  const data = await querySubgraph<{ pools: SubgraphPool[] }>(TRENDING_TOKENS_QUERY, {
+    timeWindow: String(timeWindow),
   });
 
-  return data.pools || [];
+  return (data.pools || []).map(mapSubgraphPool);
 }
 
 /**

@@ -2,11 +2,12 @@
 
 ## Current Status: Ready to Fund & Launch
 
-**Date**: 2026-02-16
+**Date**: 2026-02-17
 **Tests**: 437 passing (27 test files)
 **Type errors**: 0
-**Wallet**: `0x787778578d597a7eE4098c315A87a17adEfe786A` (local viem wallet, Base Mainnet)
+**Wallet**: `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67` (local viem wallet, Base Mainnet)
 **Budget**: $100 at ~$1,973/ETH ≈ 0.05 ETH
+**Railway**: Deployed (monitoring-only, needs funding)
 
 ## Phase History
 
@@ -106,14 +107,14 @@ Added 100 tests across 4 new test files covering launcher, wallet, creator, runn
 
 ## ▶ RESUME HERE — Fund & Launch
 
-**Wallet address**: `0x787778578d597a7eE4098c315A87a17adEfe786A`
+**Wallet address**: `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`
 **Wallet type**: Local private key (viem) — NOT a CDP server wallet
 **Private key**: Stored in `.env` as `WALLET_PRIVATE_KEY`
 **To access funds**: Import private key into MetaMask/Rabby on Base network
 
 ### Immediate Next Steps
 
-1. **[ ] Fund the wallet** — Send ~0.05 ETH on Base to `0x787778578d597a7eE4098c315A87a17adEfe786A`
+1. **[ ] Fund the wallet** — Send ~0.05 ETH on Base to `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`
    - Budget: $25 gas, $40 positions (5 x ~$5), $25 buffer, $10 emergency
    - Can fund from Coinbase, MetaMask, or any Base-compatible wallet
 

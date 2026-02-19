@@ -277,19 +277,25 @@ describe("Full launch cycle orchestration", () => {
     publicClient = createMockPublicClient();
     walletClient = createMockWalletClient();
 
-    // Default subgraph response
+    // Default subgraph response (SubgraphPool format)
     setupSubgraphMock([
       {
         id: "pool-1",
-        memecoin: { address: "0x111", symbol: "DOGE", name: "Doge", totalSupply: "1000000" },
-        volumeETH: "5.0",
-        createdAt: Math.floor(Date.now() / 1000) - 3600,
+        collectionToken: { id: "0x111", name: "Doge", symbol: "DOGE", createdAt: String(Math.floor(Date.now() / 1000) - 3600), volumeETH: "5000000000000000000", totalFeesETH: "50000000000000000", fairLaunch: null },
+        volumeETH: "5000000000000000000",
+        volumeUSDC: "15000",
+        totalFeesETH: "50000000000000000",
+        feeAllocation: { creator: 7000, community: 3000 },
+        liveAtTimestamp: String(Math.floor(Date.now() / 1000) - 3600),
       },
       {
         id: "pool-2",
-        memecoin: { address: "0x222", symbol: "PEPE", name: "Pepe", totalSupply: "1000000" },
-        volumeETH: "3.0",
-        createdAt: Math.floor(Date.now() / 1000) - 1800,
+        collectionToken: { id: "0x222", name: "Pepe", symbol: "PEPE", createdAt: String(Math.floor(Date.now() / 1000) - 1800), volumeETH: "3000000000000000000", totalFeesETH: "30000000000000000", fairLaunch: null },
+        volumeETH: "3000000000000000000",
+        volumeUSDC: "9000",
+        totalFeesETH: "30000000000000000",
+        feeAllocation: { creator: 7000, community: 3000 },
+        liveAtTimestamp: String(Math.floor(Date.now() / 1000) - 1800),
       },
     ]);
   });
