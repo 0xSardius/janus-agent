@@ -6,7 +6,7 @@ import { z } from "zod";
 // MODEL CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-const DEFAULT_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_MODEL = "claude-sonnet-4-5-20250929";
 
 export function getModel(modelId: string = DEFAULT_MODEL) {
   return anthropic(modelId);
