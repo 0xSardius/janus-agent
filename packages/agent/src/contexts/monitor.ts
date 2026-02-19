@@ -162,7 +162,8 @@ export async function pollNewTokens(
   since?: number,
   minVolumeETH: string = "0.01"
 ): Promise<PollResult> {
-  const pollSince = since || state.lastPollTimestamp || Math.floor(Date.now() / 1000) - 3600;
+  // Always look back 24 hours to catch tokens that gained volume since launch
+  const pollSince = since || Math.floor(Date.now() / 1000) - 86400;
 
   const data = await querySubgraph<{ pools: SubgraphPool[] }>(RECENT_TOKENS_QUERY, {
     since: String(pollSince),
