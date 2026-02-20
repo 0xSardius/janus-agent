@@ -286,7 +286,7 @@ describe("launchToken", () => {
 
     expect(mockSdk.flaunchIPFS).toHaveBeenCalledWith(
       expect.objectContaining({
-        fairLaunchDuration: 1800, // 30 min
+        fairLaunchDuration: 0, // Skip fair launch, straight to AMM
         initialMarketCapUSD: 10_000,
         creatorFeeAllocationPercent: 100,
       })

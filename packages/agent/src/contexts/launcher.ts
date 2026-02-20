@@ -106,7 +106,7 @@ export async function launchToken(
       name: config.name,
       symbol: config.symbol.slice(0, 6), // Flaunch symbol limit
       fairLaunchPercent: 0,
-      fairLaunchDuration: config.fairLaunchDuration || 30 * 60, // 30 min default
+      fairLaunchDuration: config.fairLaunchDuration || 0, // Skip fair launch, go straight to AMM
       initialMarketCapUSD: config.initialMarketCapUSD || 10_000,
       creator: walletAddress,
       creatorFeeAllocationPercent: config.creatorFeePercent || 100,
