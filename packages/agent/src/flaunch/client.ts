@@ -73,13 +73,26 @@ export function createFlaunchWrapper(
     },
 
     async getPoolCreatedFromTx(hash) {
-      const result = await sdk.getPoolCreatedFromTx(hash);
-      if (!result) return null;
-      return {
-        memecoin: result.memecoin,
-        tokenId: result.tokenId,
-        poolId: result.poolId,
-      };
+      // Base L2 receipts can take a moment to propagate to the RPC node.
+      // Retry up to 3 times with increasing delays to handle this.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          if (attempt > 0) {
+            await new Promise((r) => setTimeout(r, 3000 * attempt));
+          }
+          const result = await sdk.getPoolCreatedFromTx(hash);
+          if (!result) return null;
+          return {
+            memecoin: result.memecoin,
+            tokenId: result.tokenId,
+            poolId: result.poolId,
+          };
+        } catch (err) {
+          if (attempt === 2) throw err;
+          // Receipt not found yet, retry after delay
+        }
+      }
+      return null;
     },
 
     async buyCoin(params) {

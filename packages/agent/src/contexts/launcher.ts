@@ -116,6 +116,11 @@ export async function launchToken(
       },
     });
 
+    // Set cooldown immediately after tx is submitted to prevent rapid-fire launches.
+    // This ensures the 2-hour cooldown kicks in even if receipt parsing fails.
+    state.lastLaunchTimestamp = Date.now();
+    state.dailyLaunchCount++;
+
     // Parse transaction to get token data
     const poolData = await flaunch.getPoolCreatedFromTx(hash);
 
@@ -131,8 +136,6 @@ export async function launchToken(
       };
 
       state.launchedTokens.push(launchedToken);
-      state.lastLaunchTimestamp = Date.now();
-      state.dailyLaunchCount++;
 
       return {
         success: true,
