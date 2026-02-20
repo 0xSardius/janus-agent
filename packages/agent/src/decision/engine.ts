@@ -12,7 +12,7 @@ import { getRecentSuccessRate } from "../performance/index.js";
 // DECISION THRESHOLDS
 // ═══════════════════════════════════════════════════════════════════════════
 
-const VOLUME_THRESHOLD = BigInt(10) * BigInt(1e18); // 10 ETH hourly
+const VOLUME_THRESHOLD = BigInt(1e17); // 0.1 ETH hourly (Flaunch avg ~0.28 ETH/hr)
 const SATURATION_THRESHOLD = 20; // Max recent launches before market is "saturated"
 const MIN_COOLDOWN_MS = SAFETY_LIMITS.minTimeBetweenLaunches;
 
@@ -101,7 +101,7 @@ function calculateFactors(
   return {
     // Budget constraints
     hasEnoughGas: state.ethBalance > SAFETY_LIMITS.minEthBalance,
-    hasEnoughUSDC: state.usdcBalance > BigInt(10) * BigInt(1e6), // 10 USDC
+    hasEnoughUSDC: true, // Agent operates in ETH only, no USDC requirement
 
     // Recent performance — use real data if available
     recentSuccessRate: performanceState
@@ -226,8 +226,8 @@ export async function getMarketConditions(): Promise<MarketConditions> {
     const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
 
     const query = `
-      query MarketConditions($since: Int!) {
-        pools(where: { createdAt_gte: $since }) {
+      query MarketConditions($since: BigInt!) {
+        pools(where: { liveAtTimestamp_gte: $since }) {
           id
           volumeETH
         }
@@ -237,7 +237,7 @@ export async function getMarketConditions(): Promise<MarketConditions> {
     const response = await fetch(subgraphUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { since: oneHourAgo } }),
+      body: JSON.stringify({ query, variables: { since: String(oneHourAgo) } }),
     });
 
     const result = await response.json() as { data?: { pools?: Array<{ id: string; volumeETH: string }> } };

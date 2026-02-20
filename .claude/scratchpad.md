@@ -1,13 +1,14 @@
 # Janus Agent — Development Scratchpad
 
-## Current Status: Ready to Fund & Launch
+## Current Status: LIVE on Mainnet
 
-**Date**: 2026-02-17
+**Date**: 2026-02-19
 **Tests**: 437 passing (27 test files)
 **Type errors**: 0
 **Wallet**: `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67` (local viem wallet, Base Mainnet)
-**Budget**: $100 at ~$1,973/ETH ≈ 0.05 ETH
-**Railway**: Deployed (monitoring-only, needs funding)
+**Balance**: 0.05 ETH (~$100)
+**Railway**: Deployed and running (~1377+ cycles as of Feb 20)
+**Launches**: 0 (decision engine stuck at 0.61 confidence, needs fix)
 
 ## Phase History
 
@@ -105,28 +106,35 @@ Added 100 tests across 4 new test files covering launcher, wallet, creator, runn
 - Tuned all constants for $100 budget at ~$2k/ETH
 - Added `@coinbase/coinbase-sdk` as direct dependency
 
-## ▶ RESUME HERE — Fund & Launch
+## ▶ RESUME HERE — Tune Decision Engine
 
 **Wallet address**: `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`
 **Wallet type**: Local private key (viem) — NOT a CDP server wallet
 **Private key**: Stored in `.env` as `WALLET_PRIVATE_KEY`
 **To access funds**: Import private key into MetaMask/Rabby on Base network
 
-### Immediate Next Steps
+### Completed
+1. **[x] Fund the wallet** — 0.05 ETH on Base (confirmed Feb 19)
+2. **[x] Deploy to Railway** — Live, running 1377+ cycles
+3. **[x] API keys configured** — Anthropic, Fal.ai, Alchemy RPC, Flaunch subgraph
 
-1. **[ ] Fund the wallet** — Send ~0.05 ETH on Base to `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`
-   - Budget: $25 gas, $40 positions (5 x ~$5), $25 buffer, $10 emergency
-   - Can fund from Coinbase, MetaMask, or any Base-compatible wallet
+### Issue: Decision Engine Not Launching
 
-2. **[ ] Verify funding** — Run `cd packages/agent && node --env-file=../../.env --import tsx src/check-wallet.ts`
+Agent has been running for ~23 hours without a single launch. Every cycle:
+- Top concept "flaunchstr" scores 0.81
+- Decision confidence: 0.61 (threshold: 0.65)
+- Reasoning: "Low market activity"
 
-3. **[ ] First local run** — `pnpm start` (or `node packages/agent/dist/runner.js`)
-   - Watch logs: wallet connects, balance reads, subgraph polls
-   - Wait for agent to find concept scoring > 0.65 and auto-launch
-   - Monitor via Discord/Slack alerts or `/api/portfolio`
+**Root cause**: Two decision factors are zeroing out:
+1. `hasEnoughUSDC` (worth 0.10) — requires >10 USDC but wallet only has ETH. Agent doesn't use USDC.
+2. `isHighActivity` (worth 0.15) — requires >10 ETH hourly volume on Flaunch, too high for the platform.
 
-4. **[ ] Deploy to Railway** (once stable locally)
-   - Push to GitHub, connect in Railway, set env vars, deploy
+Together these cost 0.25 points. Fixing both would bring score to ~0.86.
+
+### Next Steps
+1. **[ ] Fix decision engine** — Remove/lower USDC requirement, lower volume threshold
+2. **[ ] Redeploy to Railway** — Push fix and verify launches start
+3. **[ ] Monitor first launch** — Watch for successful token creation + position opening
 
 ### Current Constants ($100 Budget at ~$2k/ETH)
 

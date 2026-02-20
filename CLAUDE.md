@@ -110,15 +110,17 @@ autonomous-token-launcher/
 
 ## Critical Implementation Details
 
-### Wallet Setup (CDP Server Wallet v2)
+### Wallet Setup (Local Viem Wallet)
 ```typescript
-import { CdpWalletProvider } from "@coinbase/agentkit";
-const walletProvider = await CdpWalletProvider.configureWithWallet({
-  apiKeyName: process.env.CDP_API_KEY_NAME!,
-  apiKeyPrivate: process.env.CDP_API_KEY_PRIVATE!,
-  networkId: "base-mainnet",
-});
-// walletProvider.getWalletClient() returns viem-compatible client
+import { privateKeyToAccount } from "viem/accounts";
+import { createWalletClient, http } from "viem";
+import { base } from "viem/chains";
+import { ViemWalletProvider } from "@coinbase/agentkit";
+
+const account = privateKeyToAccount(process.env.WALLET_PRIVATE_KEY as `0x${string}`);
+const walletClient = createWalletClient({ account, chain: base, transport: http(rpcUrl) });
+const walletProvider = new ViemWalletProvider(walletClient);
+// Falls back to CDP Server Wallet if WALLET_PRIVATE_KEY not set
 ```
 
 ### Flaunch Launch Call
@@ -138,8 +140,8 @@ const poolData = await flaunch.getPoolCreatedFromTx(hash);
 ### Position Strategy Constants
 ```typescript
 const POSITION_STRATEGY = {
-  buyAmountETH: parseEther("0.003"),    // ~$8-10 per position
-  maxActivePositions: 10,
+  buyAmountETH: parseEther("0.0025"),   // ~$5 per position
+  maxActivePositions: 5,                 // Max concurrent positions
   maxPortfolioExposure: 0.25,           // 25% of wallet max
   sellTranches: [
     { triggerMultiple: 3,  sellPercent: 25 },
@@ -155,15 +157,15 @@ const POSITION_STRATEGY = {
 ### Safety Limits
 ```typescript
 const SAFETY_LIMITS = {
-  maxDailyGasSpend: parseEther("0.5"),
-  maxSingleLaunchGas: parseEther("0.02"),
-  minEthBalance: parseEther("0.1"),
-  maxLaunchesPerDay: 5,
+  maxDailyGasSpend: parseEther("0.01"),      // ~$20/day gas cap
+  maxSingleLaunchGas: parseEther("0.005"),   // ~$10 per launch
+  minEthBalance: parseEther("0.005"),        // ~$10 emergency floor
+  maxLaunchesPerDay: 3,
   minTimeBetweenLaunches: 2 * 60 * 60 * 1000, // 2 hours
   minConceptScore: 0.65,
   minConfidenceThreshold: 0.7,
-  maxBuyPerToken: parseEther("0.003"),
-  maxActivePositions: 10,
+  maxBuyPerToken: parseEther("0.0025"),      // ~$5 per position
+  maxActivePositions: 5,
   maxPortfolioExposure: 0.25,
   stopLossMultiple: 0.5,
   maxHoldDays: 7,
@@ -196,12 +198,12 @@ ENABLE_API_GATING=         # true/false - enable x402 gating on /api/* endpoints
 SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 ```
 
-## Budget: $200 Experiment
+## Budget: $100 Experiment
 
-- Gas Reserve: $50
-- Position Capital: $80 (8-10 positions at ~$8-10 each)
-- Operating Buffer: $50
-- Emergency Reserve: $20
+- Gas Reserve: $25
+- Position Capital: $40 (5 positions at ~$5 each)
+- Operating Buffer: $25
+- Emergency Reserve: $10
 
 ## Key Dependencies
 
@@ -228,7 +230,7 @@ SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 - [x] Monitor Context - Flaunch subgraph polling, concept extraction
 - [x] Analyzer Context - Multi-factor scoring (volume, recency, social, novelty)
 - [x] Creator Context - Token metadata generation with fallback patterns
-- [x] Launcher Context - Flaunch SDK integration (stub, needs real SDK)
+- [x] Launcher Context - Flaunch SDK integration
 - [x] Position Manager Context - Buy/sell logic, staged exits, stop loss
 - [x] Decision Engine - Weighted launch decisions
 - [x] Safety module - Balance checks, gas limits, circuit breakers
@@ -276,8 +278,12 @@ SQLITE_DB_PATH=            # SQLite database file path (default: ./janus.db)
 - [x] Runner integration tests — full cycle orchestration, error recovery, safety checks, daily reset, decision engine (22 tests)
 - [x] Test suite: 437 tests passing
 
+### Deployment (LIVE)
+- [x] Wallet funded with 0.05 ETH on Base (`0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`)
+- [x] Deployed to Railway — running autonomously (cycle ~60s)
+- [x] API keys configured (Anthropic, Fal.ai, Alchemy RPC, Flaunch subgraph)
+
 ### Future Work
-- [ ] Real end-to-end testing with funded CDP wallet on Base
 - [ ] Dashboard UI (Next.js monitoring interface)
 - [ ] Advanced social signals (Farcaster frames, Twitter spaces)
 - [ ] Multi-chain support
@@ -288,10 +294,9 @@ When returning to this project:
 1. Run `pnpm install` to ensure dependencies are up to date
 2. Run `pnpm test` to verify everything still works (437 tests)
 3. Run `pnpm typecheck` to verify no type errors
-4. **Read `.claude/scratchpad.md` "RESUME HERE" section** for full deployment checklist
-5. All 5 code phases are complete — next step is mainnet deployment with $200 budget
-6. Need API keys: CDP (wallet), Anthropic (LLM), Fal.ai (images), Alchemy (RPC), Flaunch subgraph URL
-7. Optional: Neynar (Farcaster), Twitter bearer token, Discord/Slack webhooks
+4. Check Railway logs: `railway logs` to see live agent cycles
+5. Check wallet balance on Base for `0x9E907DdB8ea3D6e2f9dCf876CdE7297c50E67F67`
+6. Agent is LIVE on Railway — all API keys configured, wallet funded with 0.05 ETH
 
 ## Reference Docs
 
