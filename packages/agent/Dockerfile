@@ -45,6 +45,11 @@ RUN pnpm install --frozen-lockfile --prod || pnpm install --prod
 # Copy built artifacts from builder
 COPY --from=builder /app/packages/agent/dist packages/agent/dist
 
+# Create persistent data directory (Railway volume mounts here)
+RUN mkdir -p /data
+
 EXPOSE 3000
+
+ENV SQLITE_DB_PATH=/data/janus.db
 
 CMD ["node", "packages/agent/dist/runner.js"]
